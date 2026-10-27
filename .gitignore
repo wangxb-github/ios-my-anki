@@ -4,6 +4,7 @@
 **/xcuserdata/
 DerivedData/
 AnkiRust.xcframework/
+build-output/
 anki-bridge-rs/target/
 anki-upstream/target/
 .claude/settings.local.json
