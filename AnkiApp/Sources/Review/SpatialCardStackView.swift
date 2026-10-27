@@ -31,22 +31,24 @@ struct CardSpatialPoseModifier: ViewModifier, Animatable {
     }
 
     func body(content: Content) -> some View {
-        let rotY = Double(dragOffset.width) / 16.0
-        let rotX = -Double(dragOffset.height) / 22.0
+        let rotY = Double(dragOffset.width) / 18.0
+        let rotX = -Double(dragOffset.height) / 26.0
 
         content
             .offset(dragOffset)
-            .rotation3DEffect(.degrees(rotY), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
-            .rotation3DEffect(.degrees(rotX), axis: (x: 1, y: 0, z: 0), perspective: 0.6)
-            .rotation3DEffect(.degrees(flipDegrees), axis: (x: 0, y: 1, z: 0), perspective: 0.7)
-            .ankiCausticRipple(origin: rippleOrigin, time: rippleTime, amplitude: 0.8)
+            .rotation3DEffect(.degrees(rotY), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
+            .rotation3DEffect(.degrees(rotX), axis: (x: 1, y: 0, z: 0), perspective: 0.5)
+            .rotation3DEffect(.degrees(flipDegrees), axis: (x: 0, y: 1, z: 0), perspective: 0.55)
+            .ankiCausticRipple(origin: rippleOrigin, time: rippleTime, amplitude: 0.65)
     }
 }
 
-/// 具备 3D 物理堆叠、四向阻尼滑动手势与域扭曲斩杀特效的闪卡容器
+/// 具备 3D 物理手势、水平阻尼滑动评分与域扭曲斩杀特效的闪卡容器
 public struct SpatialCardStackView<Content: View>: View {
     public let showAnswer: Bool
     public let allowsTapToFlip: Bool
+    public let allowsVerticalRatingSwipe: Bool
+    public let showsBackgroundStack: Bool
     public let onFlip: () -> Void
     public let onRating: (Rating) -> Void
     @ViewBuilder public let content: () -> Content
@@ -65,12 +67,16 @@ public struct SpatialCardStackView<Content: View>: View {
     public init(
         showAnswer: Bool,
         allowsTapToFlip: Bool = false,
+        allowsVerticalRatingSwipe: Bool = false,
+        showsBackgroundStack: Bool = false,
         onFlip: @escaping () -> Void,
         onRating: @escaping (Rating) -> Void,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.showAnswer = showAnswer
         self.allowsTapToFlip = allowsTapToFlip
+        self.allowsVerticalRatingSwipe = allowsVerticalRatingSwipe
+        self.showsBackgroundStack = showsBackgroundStack
         self.onFlip = onFlip
         self.onRating = onRating
         self.content = content
@@ -79,21 +85,23 @@ public struct SpatialCardStackView<Content: View>: View {
     public var body: some View {
         GeometryReader { geo in
             ZStack {
-                // 背景景深卡片 2（更深）
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(Color.amgiSurface.opacity(0.45))
-                    .ankiLiquidGlass(minimumCorner: 24)
-                    .scaleEffect(0.91)
-                    .offset(y: 22)
-                    .opacity(0.65)
+                if showsBackgroundStack {
+                    // 背景景深卡片 2（更深）
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(Color.amgiSurface.opacity(0.45))
+                        .ankiLiquidGlass(minimumCorner: 24)
+                        .scaleEffect(0.91)
+                        .offset(y: 22)
+                        .opacity(0.65)
 
-                // 背景景深卡片 1（稍浅）
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(Color.amgiSurface.opacity(0.65))
-                    .ankiLiquidGlass(minimumCorner: 24)
-                    .scaleEffect(0.96)
-                    .offset(y: 11)
-                    .opacity(0.85)
+                    // 背景景深卡片 1（稍浅）
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(Color.amgiSurface.opacity(0.65))
+                        .ankiLiquidGlass(minimumCorner: 24)
+                        .scaleEffect(0.96)
+                        .offset(y: 11)
+                        .opacity(0.85)
+                }
 
                 // 前景主卡片
                 ZStack {
@@ -101,7 +109,7 @@ public struct SpatialCardStackView<Content: View>: View {
 
                     // 滑动方向状态发光提示边缘（仅在已揭晓答案态显示评级色散）
                     if showAnswer, let hint = activeRatingHint {
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
                             .stroke(ratingRimColor(for: hint), lineWidth: 3.5)
                             .opacity(0.88)
                             .allowsHitTesting(false)
@@ -122,16 +130,30 @@ public struct SpatialCardStackView<Content: View>: View {
                     seed: 1.618
                 )
                 .simultaneousGesture(
-                    DragGesture(minimumDistance: 24)
+                    DragGesture(minimumDistance: 28)
                         .onChanged { value in
+                            let dx = value.translation.width
+                            let dy = value.translation.height
+                            let isHorizontalDominant = abs(dx) > abs(dy) * 1.35
+
+                            // 在 WKWebView 模式下，垂直方向手势完全交给网页原生滚动，绝不劫持
+                            guard allowsVerticalRatingSwipe || isHorizontalDominant else {
+                                if dragOffset != .zero {
+                                    dragOffset = .zero
+                                    activeRatingHint = nil
+                                }
+                                return
+                            }
+
                             if showAnswer {
-                                dragOffset = value.translation
+                                dragOffset = allowsVerticalRatingSwipe
+                                    ? value.translation
+                                    : CGSize(width: dx, height: dy * 0.18)
                                 updateRatingHint()
                             } else {
-                                // 正面思考态提供阻尼微移反馈，不允许未看答案直接评分
                                 dragOffset = CGSize(
-                                    width: value.translation.width * 0.45,
-                                    height: value.translation.height * 0.45
+                                    width: dx * 0.45,
+                                    height: allowsVerticalRatingSwipe ? dy * 0.45 : 0
                                 )
                             }
                         }
@@ -146,8 +168,8 @@ public struct SpatialCardStackView<Content: View>: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+            .padding(.horizontal, showsBackgroundStack ? 16 : 0)
+            .padding(.vertical, showsBackgroundStack ? 8 : 0)
             .onChange(of: showAnswer) { _, isShowingAnswer in
                 if isShowingAnswer {
                     let center = CGPoint(x: geo.size.width * 0.5, y: geo.size.height * 0.5)
@@ -170,21 +192,22 @@ public struct SpatialCardStackView<Content: View>: View {
         var snap = Transaction()
         snap.disablesAnimations = true
         withTransaction(snap) {
-            // 从 -85° 侧翼切入弹回 0°，保证正反面文字始终正向且绝不发生 180° 水平镜像颠倒
-            flipDegrees = -85.0
+            // 从 -32° 侧翼切入弹回 0°，保证正反面文字始终正向且绝不发生 180° 水平镜像颠倒
+            flipDegrees = -32.0
             rippleTime = 0.02
         }
 
         HapticSymphony.shared.playFlipRatchet()
 
-        withAnimation(.spring(response: 0.48, dampingFraction: 0.74)) {
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.78)) {
             flipDegrees = 0.0
         }
-        withAnimation(.easeOut(duration: 0.55)) {
+        withAnimation(.easeOut(duration: 0.5)) {
             rippleTime = 1.0
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.56) {
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 520_000_000)
             var reset = Transaction()
             reset.disablesAnimations = true
             withTransaction(reset) {
@@ -198,14 +221,15 @@ public struct SpatialCardStackView<Content: View>: View {
             activeRatingHint = nil
             return
         }
+
         let newHint: Rating?
         if dragOffset.width < -horizontalThreshold {
             newHint = .again
         } else if dragOffset.width > horizontalThreshold {
             newHint = .good
-        } else if dragOffset.height > verticalThreshold {
+        } else if allowsVerticalRatingSwipe && dragOffset.height > verticalThreshold {
             newHint = .hard
-        } else if dragOffset.height < -verticalThreshold {
+        } else if allowsVerticalRatingSwipe && dragOffset.height < -verticalThreshold {
             newHint = .easy
         } else {
             newHint = nil
@@ -220,14 +244,23 @@ public struct SpatialCardStackView<Content: View>: View {
     }
 
     private func handleDragEnded(translation: CGSize, cardSize: CGSize) {
-        guard showAnswer else {
-            // 正面思考态：若滑动超过翻牌阈值则自动揭晓答案，否则弹性归位
-            let distance = hypot(translation.width, translation.height)
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-                dragOffset = .zero
+        let isHorizontalDominant = abs(translation.width) > abs(translation.height) * 1.35
+        guard allowsVerticalRatingSwipe || isHorizontalDominant else {
+            if dragOffset != .zero {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
+                    dragOffset = .zero
+                    activeRatingHint = nil
+                }
             }
-            if distance > flipSwipeThreshold {
-                rippleOrigin = CGPoint(x: cardSize.width * 0.5, y: cardSize.height * 0.5)
+            return
+        }
+
+        guard showAnswer else {
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.75)) {
+                dragOffset = .zero
+                activeRatingHint = nil
+            }
+            if abs(translation.width) > flipSwipeThreshold {
                 onFlip()
             }
             return
@@ -235,14 +268,14 @@ public struct SpatialCardStackView<Content: View>: View {
 
         if translation.width < -horizontalThreshold {
             // 左滑 -> Again
-            commitRating(.again, exitOffset: CGSize(width: -600, height: translation.height))
+            commitRating(.again, exitOffset: CGSize(width: -max(480, cardSize.width * 1.2), height: 0))
         } else if translation.width > horizontalThreshold {
             // 右滑 -> Good
-            commitRating(.good, exitOffset: CGSize(width: 600, height: translation.height))
-        } else if translation.height > verticalThreshold {
+            commitRating(.good, exitOffset: CGSize(width: max(480, cardSize.width * 1.2), height: 0))
+        } else if allowsVerticalRatingSwipe && translation.height > verticalThreshold {
             // 下滑 -> Hard
-            commitRating(.hard, exitOffset: CGSize(width: translation.width, height: 750))
-        } else if translation.height < -verticalThreshold {
+            commitRating(.hard, exitOffset: CGSize(width: translation.width, height: max(650, cardSize.height * 1.2)))
+        } else if allowsVerticalRatingSwipe && translation.height < -verticalThreshold {
             // 上抛 -> Easy (触发涡旋解体)
             commitEasyDissolve()
         } else {
@@ -255,11 +288,12 @@ public struct SpatialCardStackView<Content: View>: View {
     }
 
     private func commitRating(_ rating: Rating, exitOffset: CGSize) {
-        withAnimation(.easeIn(duration: 0.22)) {
+        withAnimation(.easeIn(duration: 0.20)) {
             dragOffset = exitOffset
         }
         HapticSymphony.shared.playThresholdSnap(for: rating)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 200_000_000)
             var reset = Transaction()
             reset.disablesAnimations = true
             withTransaction(reset) {
@@ -273,11 +307,12 @@ public struct SpatialCardStackView<Content: View>: View {
 
     private func commitEasyDissolve() {
         HapticSymphony.shared.playDissolveBurst()
-        withAnimation(.easeOut(duration: 0.45)) {
+        withAnimation(.easeOut(duration: 0.42)) {
             dissolveProgress = 1.0
-            dragOffset.height -= 60.0
+            dragOffset.height -= 48.0
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 420_000_000)
             var reset = Transaction()
             reset.disablesAnimations = true
             withTransaction(reset) {

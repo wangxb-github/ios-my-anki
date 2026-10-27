@@ -1,6 +1,8 @@
 import SwiftUI
+import Foundation
 
 struct UserManagementView: View {
+    @Environment(\.dismiss) private var dismiss
     @State private var users: [String] = AppUserStore.loadUsers()
     @State private var selectedUser: String = AppUserStore.loadSelectedUser()
     @State private var showAddPrompt = false
@@ -11,32 +13,80 @@ struct UserManagementView: View {
     @State private var showRenamePrompt = false
 
     @State private var deleteTarget: String?
-    @State private var showDeleteConfirmStep1 = false
-    @State private var showDeleteConfirmStep2 = false
+    @State private var showDeleteConfirm = false
 
     var body: some View {
         NavigationStack {
             List {
                 Section(L("user_mgmt_section_accounts")) {
                     ForEach(users, id: \.self) { user in
-                        HStack {
-                            Text(user)
-                                .amgiFont(.body)
-                                .foregroundStyle(Color.amgiTextPrimary)
-                            Spacer()
-                            if selectedUser == user {
-                                Label(L("common_selected"), systemImage: "checkmark.circle.fill")
-                                    .labelStyle(.iconOnly)
-                                    .amgiStatusBadge(.positive)
+                        HStack(spacing: 12) {
+                            Button {
+                                selectedUser = user
+                                AppUserStore.setSelectedUser(user)
+                            } label: {
+                                HStack {
+                                    Text(user)
+                                        .amgiFont(.body)
+                                        .foregroundStyle(Color.amgiTextPrimary)
+                                    Spacer()
+                                    if selectedUser == user {
+                                        Label(L("common_selected"), systemImage: "checkmark.circle.fill")
+                                            .labelStyle(.iconOnly)
+                                            .amgiStatusBadge(.positive)
+                                    }
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+
+                            Menu {
+                                Button {
+                                    renameTarget = user
+                                    renameText = user
+                                    showRenamePrompt = true
+                                } label: {
+                                    Label(L("user_mgmt_rename"), systemImage: "pencil")
+                                }
+
+                                Button(role: .destructive) {
+                                    deleteTarget = user
+                                    showDeleteConfirm = true
+                                } label: {
+                                    Label(L("common_delete"), systemImage: "trash")
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis.circle")
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(Color.amgiTextSecondary)
+                                    .frame(width: 28, height: 28)
                             }
                         }
                         .listRowBackground(Color.amgiSurfaceElevated)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            selectedUser = user
-                            AppUserStore.setSelectedUser(user)
+                        .contextMenu {
+                            Button {
+                                renameTarget = user
+                                renameText = user
+                                showRenamePrompt = true
+                            } label: {
+                                Label(L("user_mgmt_rename"), systemImage: "pencil")
+                            }
+
+                            Button(role: .destructive) {
+                                deleteTarget = user
+                                showDeleteConfirm = true
+                            } label: {
+                                Label(L("common_delete"), systemImage: "trash")
+                            }
                         }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                deleteTarget = user
+                                showDeleteConfirm = true
+                            } label: {
+                                Label(L("common_delete"), systemImage: "trash")
+                            }
+
                             Button {
                                 renameTarget = user
                                 renameText = user
@@ -45,13 +95,6 @@ struct UserManagementView: View {
                                 Label(L("user_mgmt_rename"), systemImage: "pencil")
                             }
                             .tint(Color.amgiAccent)
-
-                            Button(role: .destructive) {
-                                deleteTarget = user
-                                showDeleteConfirmStep1 = true
-                            } label: {
-                                Label(L("common_delete"), systemImage: "trash")
-                            }
                         }
                     }
                 }
@@ -60,6 +103,12 @@ struct UserManagementView: View {
             .background(Color.amgiBackground)
             .navigationTitle(L("user_mgmt_title"))
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(L("common_done")) {
+                        dismiss()
+                    }
+                    .amgiToolbarTextButton(tone: .neutral)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         newUserName = ""
@@ -101,30 +150,33 @@ struct UserManagementView: View {
                 }
             }
         }
-        .alert(L("user_mgmt_delete_confirm1_title"), isPresented: $showDeleteConfirmStep1) {
-            Button(L("common_cancel"), role: .cancel) {}
-            Button(L("user_mgmt_delete_continue")) {
-                showDeleteConfirmStep2 = true
+        .alert(L("user_mgmt_delete_confirm1_title"), isPresented: $showDeleteConfirm) {
+            Button(L("common_cancel"), role: .cancel) {
+                deleteTarget = nil
             }
-        } message: {
-            Text(L("user_mgmt_delete_confirm1_msg"))
-        }
-        .alert(L("user_mgmt_delete_confirm2_title"), isPresented: $showDeleteConfirmStep2) {
-            Button(L("common_cancel"), role: .cancel) {}
-            Button(L("user_mgmt_delete_confirm_button"), role: .destructive) {
+            Button(L("common_delete"), role: .destructive) {
                 guard let target = deleteTarget else { return }
-                users.removeAll { $0 == target }
-                if users.isEmpty {
-                    users = [L("user_mgmt_default_user")]
-                }
-                AppUserStore.saveUsers(users)
-                if selectedUser == target {
-                    selectedUser = users[0]
-                    AppUserStore.setSelectedUser(users[0])
-                }
+                performDeleteUser(target)
+                deleteTarget = nil
             }
         } message: {
             Text(L("user_mgmt_delete_confirm2_msg"))
+        }
+    }
+
+    private func performDeleteUser(_ target: String) {
+        let wasSelected = (selectedUser == target)
+        users.removeAll { $0 == target }
+        if users.isEmpty {
+            users = [L("user_mgmt_default_user")]
+        }
+        AppUserStore.saveUsers(users)
+        if wasSelected {
+            selectedUser = users[0]
+            AppUserStore.setSelectedUser(users[0])
+        } else {
+            let folderURL = AppUserStore.collectionURLs(for: target).directory
+            try? FileManager.default.removeItem(at: folderURL)
         }
     }
 }

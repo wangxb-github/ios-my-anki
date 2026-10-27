@@ -174,7 +174,6 @@ extension View {
     func amgiToolbarTextButton(tone: AmgiStatusTone = .accent) -> some View {
         tint(tone.toolbarForegroundColor)
             .foregroundStyle(tone.toolbarForegroundColor)
-            .buttonStyle(.glass)
     }
 
     func amgiStatusText(_ tone: AmgiStatusTone, font: AmgiFont = .captionBold) -> some View {
@@ -184,12 +183,17 @@ extension View {
 
     func amgiCapsuleControl(
         backgroundColor: Color = .amgiSurface,
-        horizontalPadding: CGFloat = 12,
+        horizontalPadding: CGFloat = 10,
         verticalPadding: CGFloat = 6
     ) -> some View {
         padding(.horizontal, horizontalPadding)
             .padding(.vertical, verticalPadding)
-            .glassEffect(Glass.regular.tint(backgroundColor).interactive(), in: .capsule)
+            .background(backgroundColor, in: Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(Color.amgiBorder.opacity(0.28), lineWidth: 1)
+            )
+            .clipShape(Capsule())
     }
 
     func amgiStatusBadge(_ tone: AmgiStatusTone, horizontalPadding: CGFloat = 8, verticalPadding: CGFloat = 4) -> some View {

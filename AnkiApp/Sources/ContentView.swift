@@ -84,7 +84,6 @@ struct ContentView: View {
                                 ToolbarItem(placement: .topBarLeading) {
                                     userMenu
                                 }
-                                ToolbarSpacer(.flexible)
                                 ToolbarItem(placement: .topBarTrailing) {
                                     trailingActions
                                 }
@@ -129,25 +128,6 @@ struct ContentView: View {
                             .id(refreshID)
                     }
                 }
-            }
-            .tabBarMinimizeBehavior(.onScrollDown)
-            .tabViewBottomAccessory {
-                Button {
-                    startQuickStudy()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "bolt.fill")
-                            .foregroundColor(.yellow)
-                        Text("Quick Study")
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .glassEffect(Glass.regular.tint(Color.amgiAccent).interactive(), in: .capsule)
-                }
-                .buttonStyle(.plain)
-                .matchedTransitionSource(id: "quick-study-accessory", in: quickStudyZoomNamespace)
-                .disabled(!collectionState.isReady || isImportExportInProgress)
             }
             .disabled(isImportExportInProgress)
 
@@ -312,21 +292,18 @@ struct ContentView: View {
             showUserManager = true
         } label: {
             HStack(spacing: 6) {
-                Label(
-                    currentUserDisplayName,
-                    systemImage: isSwitchingUser ? "arrow.triangle.2.circlepath.circle" : "person.crop.circle"
-                )
-                .labelStyle(.titleAndIcon)
-                .lineLimit(1)
-                .layoutPriority(1)
+                Image(systemName: isSwitchingUser ? "arrow.triangle.2.circlepath.circle" : "person.crop.circle.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                Text(currentUserDisplayName)
+                    .font(.system(size: 14, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: 165, alignment: .leading)
                 Image(systemName: "chevron.down")
-                    .font(AmgiFont.micro.font)
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(Color.amgiTextSecondary)
             }
-            .fixedSize(horizontal: true, vertical: false)
-            .amgiCapsuleControl()
         }
-        .buttonStyle(.plain)
         .disabled(isSwitchingUser)
     }
 
@@ -337,6 +314,14 @@ struct ContentView: View {
 
     private var trailingActions: some View {
         HStack(spacing: 14) {
+            Button {
+                startQuickStudy()
+            } label: {
+                Image(systemName: "bolt.circle")
+            }
+            .matchedTransitionSource(id: "quick-study-accessory", in: quickStudyZoomNamespace)
+            .disabled(!collectionState.isReady)
+
             Button {
                 showSync = true
             } label: {

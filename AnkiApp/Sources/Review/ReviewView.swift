@@ -155,7 +155,10 @@ struct ReviewView: View {
         .background {
             ZStack {
                 cardChromeColor.ignoresSafeArea()
-                LiquidAuroraBackground(streak: streakCount)
+                if cardChromeIsDark && streakCount >= 3 {
+                    LiquidAuroraBackground(streak: streakCount)
+                        .opacity(0.16)
+                }
             }
         }
         .task {

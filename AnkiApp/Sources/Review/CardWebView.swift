@@ -2305,15 +2305,14 @@ struct LiquidCrystalCardWebView: View {
                 onLookupRequested: onLookupRequested,
                 onScrollOffsetChange: onScrollOffsetChange
             )
-            .clipShape(.rect(corners: .concentric(minimum: .fixed(24)), isUniform: true))
-            .glassEffect(Glass.regular.interactive(), in: .rect(corners: .concentric(minimum: .fixed(24)), isUniform: true))
+            .clipShape(.rect(corners: .concentric(minimum: .fixed(20)), isUniform: true))
             .overlay {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .strokeBorder(Color.amgiGlassRimLight, lineWidth: 1.5)
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(Color.amgiGlassRimLight.opacity(0.45), lineWidth: 1)
                     .ankiIridescentHoloFoil(
                         size: geo.size,
                         tilt: MotionManager.shared.currentTilt,
-                        intensity: 0.35
+                        intensity: 0.22
                     )
                     .allowsHitTesting(false)
             }

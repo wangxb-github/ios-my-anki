@@ -47,8 +47,10 @@ public struct LiquidMorphingDock: View {
                     }
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 54)
+                    .frame(height: 52)
+                    .contentShape(Capsule())
                 }
+                .buttonStyle(.plain)
                 .glassEffect(Glass.regular.tint(Color.amgiAccent).interactive(), in: .capsule)
                 .glassEffectID("primary-action", in: dockNamespace)
                 .glassEffectTransition(.matchedGeometry)
@@ -71,8 +73,10 @@ public struct LiquidMorphingDock: View {
                             }
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 54)
+                            .frame(height: 52)
+                            .contentShape(Capsule())
                         }
+                        .buttonStyle(.plain)
                         .glassEffect(Glass.regular.tint(ratingLiquidColor(for: rating)).interactive(), in: .capsule)
                         .glassEffectID("rating-\(rating.rawValue)", in: dockNamespace)
                         .glassEffectTransition(.matchedGeometry)

@@ -66,7 +66,7 @@ struct StatsDashboardView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 16, pinnedViews: [.sectionHeaders]) {
+            LazyVStack(spacing: 16) {
                 if isLoading {
                     ProgressView(L("stats_loading"))
                         .padding(.top, 40)
@@ -77,22 +77,17 @@ struct StatsDashboardView: View {
                         description: Text(error)
                     )
                 } else if let graphs {
-                    Section {
-                        TodayStatsCard(today: graphs.today)
-                        ForEach(orderedChartSections(for: graphs), id: \.self) { section in
-                            chartView(for: section, graphs: graphs)
-                        }
-                    } header: {
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 8) {
-                                deckMenu
-                                Spacer()
-                                revlogRangePicker
-                            }
-                        }
-                        .padding(.vertical, 4)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.clear)
+                    HStack(spacing: 8) {
+                        deckMenu
+                        Spacer()
+                        revlogRangePicker
+                    }
+                    .padding(.vertical, 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    TodayStatsCard(today: graphs.today)
+                    ForEach(orderedChartSections(for: graphs), id: \.self) { section in
+                        chartView(for: section, graphs: graphs)
                     }
                 }
             }
