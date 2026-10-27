@@ -6,9 +6,9 @@ let package = Package(
     name: "EPUBKit",
     
     platforms: [
-        .macOS(.v10_15),
-        .iOS(.v16),
-        .tvOS(.v16)
+        .macOS(.v15),
+        .iOS(.v18),
+        .tvOS(.v17)
     ],
     
     products: [
