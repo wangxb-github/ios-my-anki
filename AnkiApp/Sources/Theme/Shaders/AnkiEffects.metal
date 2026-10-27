@@ -6,20 +6,20 @@ using namespace metal;
 // MARK: - 辅助函数：简易高品质伪随机与分形噪声
 
 static float hash21(float2 p) {
-    p = fract(p * float2(234.34, 435.345));
-    p += dot(p, p + 34.23);
+    p = fract(p * float2(234.34f, 435.345f));
+    p += dot(p, p + 34.23f);
     return fract(p.x * p.y);
 }
 
 static float noise(float2 p) {
     float2 i = floor(p);
     float2 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
+    f = f * f * (3.0f - 2.0f * f);
     
     float a = hash21(i);
-    float b = hash21(i + float2(1.0, 0.0));
-    float c = hash21(i + float2(0.0, 1.0));
-    float d = hash21(i + float2(1.0, 1.0));
+    float b = hash21(i + float2(1.0f, 0.0f));
+    float c = hash21(i + float2(0.0f, 1.0f));
+    float d = hash21(i + float2(1.0f, 1.0f));
     
     return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
@@ -27,14 +27,14 @@ static float noise(float2 p) {
 // 简易域扭曲（Domain Warping）fBm 噪声
 static float domainWarping(float2 p, float seed) {
     float2 q = float2(
-        noise(p + float2(0.0, 0.0) + seed),
-        noise(p + float2(5.2, 1.3) + seed * 1.3)
+        noise(p + float2(0.0f, 0.0f) + seed),
+        noise(p + float2(5.2f, 1.3f) + seed * 1.3f)
     );
     float2 r = float2(
-        noise(p + 4.0 * q + float2(1.7, 9.2) + seed * 0.7),
-        noise(p + 4.0 * q + float2(8.3, 2.8) + seed * 0.5)
+        noise(p + 4.0f * q + float2(1.7f, 9.2f) + seed * 0.7f),
+        noise(p + 4.0f * q + float2(8.3f, 2.8f) + seed * 0.5f)
     );
-    return noise(p + 4.0 * r);
+    return noise(p + 4.0f * r);
 }
 
 // MARK: - 1. 全息薄膜色散 (Iridescent Holo Foil)
@@ -46,23 +46,23 @@ static float domainWarping(float2 p, float seed) {
     float2 tilt,
     float intensity
 ) {
-    if (color.a <= 0.001 || intensity <= 0.0) {
+    if (color.a <= 0.001h || intensity <= 0.0f) {
         return color;
     }
     
-    float2 uv = position / max(size, float2(1.0, 1.0));
+    float2 uv = position / max(size, float2(1.0f, 1.0f));
     // 结合倾角与位置计算光学相位
-    float phase = dot(uv, float2(0.707, 0.707)) * 3.0 + (tilt.x + tilt.y) * 2.2;
+    float phase = dot(uv, float2(0.707f, 0.707f)) * 3.0f + (tilt.x + tilt.y) * 2.2f;
     
     // 正弦彩虹光谱发生器
     half3 rainbow = half3(
-        0.5 + 0.5 * cos(phase + 0.0),
-        0.5 + 0.5 * cos(phase + 2.094),
-        0.5 + 0.5 * cos(phase + 4.188)
+        half(0.5f + 0.5f * cos(phase + 0.0f)),
+        half(0.5f + 0.5f * cos(phase + 2.094f)),
+        half(0.5f + 0.5f * cos(phase + 4.188f))
     );
     
     // 以柔光叠加模式混合
-    half3 blended = mix(color.rgb, color.rgb + rainbow * half(intensity * 0.45), half(intensity));
+    half3 blended = mix(color.rgb, color.rgb + rainbow * half(intensity * 0.45f), half(intensity));
     return half4(blended, color.a);
 }
 
@@ -75,30 +75,30 @@ static float domainWarping(float2 p, float seed) {
     float progress,
     float seed
 ) {
-    if (progress <= 0.001) {
+    if (progress <= 0.001f) {
         return layer.sample(position);
     }
-    if (progress >= 0.999) {
-        return half4(0.0);
+    if (progress >= 0.999f) {
+        return half4(0.0h);
     }
     
-    float2 uv = position / max(size, float2(1.0, 1.0));
-    float n = domainWarping(uv * 6.0, seed);
+    float2 uv = position / max(size, float2(1.0f, 1.0f));
+    float n = domainWarping(uv * 6.0f, seed);
     
     // 计算当前像素的溶解阈值
-    float threshold = progress * 1.35;
+    float threshold = progress * 1.35f;
     if (n < threshold) {
         // 在边缘产生流体发光烧蚀带
         float edge = threshold - n;
-        if (edge < 0.08) {
-            half3 emberColor = mix(half3(0.3, 0.8, 1.0), half3(1.0, 0.35, 0.6), half(edge / 0.08));
-            return half4(emberColor, half((1.0 - edge / 0.08) * (1.0 - progress)));
+        if (edge < 0.08f) {
+            half3 emberColor = mix(half3(0.3h, 0.8h, 1.0h), half3(1.0h, 0.35h, 0.6h), half(edge / 0.08f));
+            return half4(emberColor, half((1.0f - edge / 0.08f) * (1.0f - progress)));
         }
-        return half4(0.0);
+        return half4(0.0h);
     }
     
     // 伴随轻微空间扭曲拉扯
-    float2 distortedPos = position + float2(sin(n * 6.28), cos(n * 6.28)) * (progress * 15.0);
+    float2 distortedPos = position + float2(sin(n * 6.28f), cos(n * 6.28f)) * (progress * 15.0f);
     return layer.sample(distortedPos);
 }
 
@@ -111,20 +111,20 @@ static float domainWarping(float2 p, float seed) {
     float time,
     float amplitude
 ) {
-    if (amplitude <= 0.001 || time <= 0.0) {
+    if (amplitude <= 0.001f || time <= 0.0f) {
         return layer.sample(position);
     }
     
     float dist = distance(position, origin);
-    float speed = 280.0; // 传播速度
+    float speed = 280.0f; // 传播速度
     float waveRadius = time * speed;
-    float waveWidth = 48.0;
+    float waveWidth = 48.0f;
     
     float diff = dist - waveRadius;
     if (abs(diff) < waveWidth) {
-        float factor = cos(diff / waveWidth * 3.14159) * (1.0 - min(1.0, time * 1.5)) * amplitude;
-        float2 dir = normalize(position - origin + float2(0.0001, 0.0001));
-        float2 displacedPos = position + dir * factor * 14.0;
+        float factor = cos(diff / waveWidth * 3.14159f) * (1.0f - min(1.0f, time * 1.5f)) * amplitude;
+        float2 dir = normalize(position - origin + float2(0.0001f, 0.0001f));
+        float2 displacedPos = position + dir * factor * 14.0f;
         return layer.sample(displacedPos);
     }
     

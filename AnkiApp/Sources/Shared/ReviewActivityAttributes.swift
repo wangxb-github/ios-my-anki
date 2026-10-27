@@ -3,8 +3,8 @@ import Foundation
 import ActivityKit
 
 /// 灵动岛与实时活动（Live Activity）状态属性
-public struct ReviewActivityAttributes: ActivityAttributes {
-    public struct ContentState: Codable, Hashable {
+public struct ReviewActivityAttributes: ActivityAttributes, Sendable {
+    public struct ContentState: Codable, Hashable, Sendable {
         public var remainingCards: Int
         public var streakCount: Int
         public var currentRatingTitle: String

@@ -8,19 +8,12 @@ import ActivityKit
 public final class ReviewLiveActivityManager {
     public static let shared = ReviewLiveActivityManager()
 
-    #if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
-    private var currentActivity: Activity<ReviewActivityAttributes>?
-    #endif
-
     private init() {}
 
     /// 开始复习时在灵动岛启动实时活动
     public func startActivity(deckName: String, totalCards: Int) {
         #if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
-
-        // 若已有未结束的活动先静默结束
-        endActivity()
 
         let attributes = ReviewActivityAttributes(deckName: deckName, totalSessionCards: totalCards)
         let initialContentState = ReviewActivityAttributes.ContentState(
@@ -30,14 +23,14 @@ public final class ReviewLiveActivityManager {
             retentionRate: 1.0
         )
 
-        do {
-            let activity = try Activity.request(
+        Task.detached {
+            for existing in Activity<ReviewActivityAttributes>.activities {
+                await existing.end(nil, dismissalPolicy: .immediate)
+            }
+            _ = try? Activity.request(
                 attributes: attributes,
-                content: .init(state: initialContentState, staleDate: nil)
+                content: ActivityContent(state: initialContentState, staleDate: nil)
             )
-            self.currentActivity = activity
-        } catch {
-            print("[LiveActivity] Failed to request activity: \(error)")
         }
         #endif
     }
@@ -45,8 +38,6 @@ public final class ReviewLiveActivityManager {
     /// 更新复习进度与连击火焰状态
     public func updateProgress(remaining: Int, streak: Int, lastRating: String, retentionRate: Double = 1.0) {
         #if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
-        guard let currentActivity else { return }
-
         let updatedState = ReviewActivityAttributes.ContentState(
             remainingCards: remaining,
             streakCount: streak,
@@ -54,13 +45,11 @@ public final class ReviewLiveActivityManager {
             retentionRate: retentionRate
         )
 
-        Task {
-            await currentActivity.update(
-                ActivityContent<ReviewActivityAttributes.ContentState>(
-                    state: updatedState,
-                    staleDate: nil
-                )
-            )
+        Task.detached {
+            let content = ActivityContent(state: updatedState, staleDate: nil)
+            for activity in Activity<ReviewActivityAttributes>.activities {
+                await activity.update(content)
+            }
         }
         #endif
     }
@@ -68,11 +57,10 @@ public final class ReviewLiveActivityManager {
     /// 复习结束或退出时关闭灵动岛活动
     public func endActivity() {
         #if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
-        guard let activity = currentActivity else { return }
-        currentActivity = nil
-
-        Task {
-            await activity.end(nil, dismissalPolicy: .immediate)
+        Task.detached {
+            for activity in Activity<ReviewActivityAttributes>.activities {
+                await activity.end(nil, dismissalPolicy: .immediate)
+            }
         }
         #endif
     }
