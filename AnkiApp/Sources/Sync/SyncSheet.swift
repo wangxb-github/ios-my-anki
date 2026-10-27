@@ -105,13 +105,26 @@ struct SyncSheet: View {
 
     @ViewBuilder
     private func syncingView(message: String) -> some View {
-        VStack(spacing: 12) {
-            VStack(spacing: 6) {
-                statusHeader(title: L("sync_syncing")) {
+        VStack(spacing: 16) {
+            GlassEffectContainer(spacing: 8) {
+                ZStack {
+                    Circle()
+                        .stroke(Color.amgiAccent.opacity(0.35), lineWidth: 6)
+                        .frame(width: 84, height: 84)
+                        .glassEffect(Glass.regular.interactive(), in: .circle)
+
                     ProgressView()
                         .progressViewStyle(.circular)
-                        .controlSize(.small)
+                        .controlSize(.large)
+                        .tint(Color.amgiAccent)
                 }
+            }
+            .padding(.top, 8)
+
+            VStack(spacing: 4) {
+                Text(L("sync_syncing"))
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.amgiTextPrimary)
                 Text(message)
                     .amgiFont(.caption)
                     .foregroundStyle(Color.amgiTextSecondary)

@@ -31,6 +31,7 @@ struct DeckDetailView: View {
     @State private var showDeckExportShareSheet = false
     @State private var exportError: String?
     @State private var showExportError = false
+    @Namespace private var studyZoomNamespace
 
     init(deck: DeckInfo) {
         self.deck = deck
@@ -146,6 +147,7 @@ struct DeckDetailView: View {
                 showReview = false
                 Task { await loadCounts() }
             }
+            .navigationTransition(.zoom(sourceID: "study-\(deck.id)", in: studyZoomNamespace))
         }
         .sheet(isPresented: $showStats) {
             NavigationStack {
@@ -272,6 +274,7 @@ struct DeckDetailView: View {
                     .amgiFont(.bodyEmphasis)
             }
             .foregroundStyle(Color.amgiAccent)
+            .matchedTransitionSource(id: "study-\(deck.id)", in: studyZoomNamespace)
             .disabled(!collectionState.isReady || counts.total == 0)
             .listRowBackground(Color.amgiSurfaceElevated)
         }

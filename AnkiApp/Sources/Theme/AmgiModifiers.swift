@@ -63,17 +63,16 @@ enum AmgiStatusTone {
 
 struct AmgiCardModifier: ViewModifier {
     let elevated: Bool
+    var interactive: Bool = false
+    var cornerRadius: CGFloat = 20
 
     func body(content: Content) -> some View {
         content
             .padding(AmgiSpacing.lg)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(elevated ? Color.amgiSurfaceElevated : Color.amgiSurface)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.amgiBorder.opacity(elevated ? 0.32 : 0.18), lineWidth: 1)
+            .ankiLiquidGlass(
+                tint: elevated ? Color.amgiSurfaceElevated.opacity(0.85) : Color.amgiSurface.opacity(0.65),
+                interactive: interactive,
+                minimumCorner: cornerRadius
             )
             .modifier(ConditionalShadow(enabled: elevated))
     }
@@ -98,8 +97,9 @@ struct AmgiPrimaryButtonStyle: ButtonStyle {
             .foregroundStyle(Color.white)
             .padding(.horizontal, AmgiSpacing.lg)
             .padding(.vertical, AmgiSpacing.sm)
-            .background(Color.amgiAccent, in: Capsule())
-            .opacity(configuration.isPressed ? 0.85 : 1.0)
+            .glassEffect(Glass.regular.tint(Color.amgiAccent).interactive(), in: .capsule)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }
 
@@ -110,11 +110,13 @@ struct AmgiSecondaryButtonStyle: ButtonStyle {
             .foregroundStyle(Color.amgiAccent)
             .padding(.horizontal, AmgiSpacing.lg)
             .padding(.vertical, AmgiSpacing.sm)
-            .background(
+            .glassEffect(Glass.regular.interactive(), in: .capsule)
+            .overlay(
                 Capsule()
-                    .stroke(Color.amgiAccent.opacity(configuration.isPressed ? 0.55 : 0.85), lineWidth: 1)
+                    .stroke(Color.amgiAccent.opacity(configuration.isPressed ? 0.45 : 0.75), lineWidth: 1)
             )
-            .opacity(configuration.isPressed ? 0.85 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }
 
@@ -140,24 +142,39 @@ struct AmgiStatusMessageView: View {
 }
 
 extension View {
-    func amgiCard(elevated: Bool = false) -> some View {
-        modifier(AmgiCardModifier(elevated: elevated))
+    /// iOS 26+ 原生 Liquid Glass 光学折射与同心圆角修饰器
+    func ankiLiquidGlass(
+        tint: Color? = nil,
+        interactive: Bool = false,
+        minimumCorner: CGFloat = 24
+    ) -> some View {
+        let glass: Glass = {
+            if let tint {
+                return interactive ? Glass.regular.tint(tint).interactive() : Glass.regular.tint(tint)
+            } else {
+                return interactive ? Glass.regular.interactive() : Glass.regular
+            }
+        }()
+        return self.glassEffect(
+            glass,
+            in: .rect(corners: .concentric(minimum: .fixed(minimumCorner)), isUniform: true)
+        )
     }
 
-    func amgiToolbarIconButton(size: CGFloat = 32) -> some View {
+    func amgiCard(elevated: Bool = false, interactive: Bool = false, cornerRadius: CGFloat = 20) -> some View {
+        modifier(AmgiCardModifier(elevated: elevated, interactive: interactive, cornerRadius: cornerRadius))
+    }
+
+    func amgiToolbarIconButton(size: CGFloat = 36) -> some View {
         frame(width: size, height: size)
             .foregroundStyle(Color.amgiTextPrimary)
-            .background(Color.amgiSurfaceElevated)
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color.amgiBorder.opacity(0.28), lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .glassEffect(Glass.regular.interactive(), in: .rect(corners: .concentric(minimum: .fixed(12)), isUniform: true))
     }
 
     func amgiToolbarTextButton(tone: AmgiStatusTone = .accent) -> some View {
         tint(tone.toolbarForegroundColor)
             .foregroundStyle(tone.toolbarForegroundColor)
+            .buttonStyle(.glass)
     }
 
     func amgiStatusText(_ tone: AmgiStatusTone, font: AmgiFont = .captionBold) -> some View {
@@ -167,17 +184,12 @@ extension View {
 
     func amgiCapsuleControl(
         backgroundColor: Color = .amgiSurface,
-        horizontalPadding: CGFloat = 10,
+        horizontalPadding: CGFloat = 12,
         verticalPadding: CGFloat = 6
     ) -> some View {
         padding(.horizontal, horizontalPadding)
             .padding(.vertical, verticalPadding)
-            .background(backgroundColor)
-            .overlay(
-                Capsule()
-                    .stroke(Color.amgiBorder.opacity(0.28), lineWidth: 1)
-            )
-            .clipShape(Capsule())
+            .glassEffect(Glass.regular.tint(backgroundColor).interactive(), in: .capsule)
     }
 
     func amgiStatusBadge(_ tone: AmgiStatusTone, horizontalPadding: CGFloat = 8, verticalPadding: CGFloat = 4) -> some View {

@@ -63,6 +63,8 @@ struct ContentView: View {
     @State private var exportDraft = ExportPackageDraft()
     @State private var importDraft = ImportPackageDraft()
     @State private var selectedTab: RootTab = .decks
+    @State private var quickStudyDeck: DeckInfo?
+    @Namespace private var quickStudyZoomNamespace
     @AppStorage(ReaderPreferences.Keys.showTab) private var isReaderTabEnabled = false
 
     private var isImportExportInProgress: Bool {
@@ -82,6 +84,7 @@ struct ContentView: View {
                                 ToolbarItem(placement: .topBarLeading) {
                                     userMenu
                                 }
+                                ToolbarSpacer(.flexible)
                                 ToolbarItem(placement: .topBarTrailing) {
                                     trailingActions
                                 }
@@ -127,11 +130,37 @@ struct ContentView: View {
                     }
                 }
             }
+            .tabBarMinimizeBehavior(.onScrollDown)
+            .tabViewBottomAccessory {
+                Button {
+                    startQuickStudy()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "bolt.fill")
+                            .foregroundColor(.yellow)
+                        Text("Quick Study")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .glassEffect(Glass.regular.tint(Color.amgiAccent).interactive(), in: .capsule)
+                }
+                .buttonStyle(.plain)
+                .matchedTransitionSource(id: "quick-study-accessory", in: quickStudyZoomNamespace)
+                .disabled(!collectionState.isReady || isImportExportInProgress)
+            }
             .disabled(isImportExportInProgress)
 
             if let importExportOperation {
                 importExportOverlay(for: importExportOperation)
             }
+        }
+        .fullScreenCover(item: $quickStudyDeck) { deck in
+            ReviewView(deckId: deck.id) {
+                quickStudyDeck = nil
+                refreshID = UUID()
+            }
+            .navigationTransition(.zoom(sourceID: "quick-study-accessory", in: quickStudyZoomNamespace))
         }
         .sheet(isPresented: $showSync) {
             updateSyncBadge()
@@ -648,6 +677,15 @@ struct ContentView: View {
             } catch {
                 importMessage = "Import failed: \(error.localizedDescription)"
             }
+        }
+    }
+
+    private func startQuickStudy() {
+        guard collectionState.isReady else { return }
+        if let allDecks = try? deckClient.fetchAll(), !allDecks.isEmpty {
+            quickStudyDeck = allDecks.first(where: { $0.counts.total > 0 }) ?? allDecks.first
+        } else {
+            selectedTab = .decks
         }
     }
 }

@@ -27,6 +27,42 @@ extension Color {
     static let amgiDanger = Color(light: .systemRed, dark: UIColor(red: 1.00, green: 0.48, blue: 0.48, alpha: 1.0))
     static let amgiInfo = Color(light: .systemCyan, dark: UIColor(red: 0.44, green: 0.84, blue: 0.95, alpha: 1.0))
 
+    // MARK: - FSRS Rating Liquid Colors
+    /// 评级 1 (Again) 绯红色
+    static let amgiRatingAgain = Color(
+        light: UIColor(red: 0.92, green: 0.25, blue: 0.32, alpha: 1.0),
+        dark: UIColor(red: 1.00, green: 0.38, blue: 0.44, alpha: 1.0)
+    )
+    /// 评级 2 (Hard) 琥珀橙色
+    static let amgiRatingHard = Color(
+        light: UIColor(red: 0.95, green: 0.58, blue: 0.18, alpha: 1.0),
+        dark: UIColor(red: 1.00, green: 0.68, blue: 0.28, alpha: 1.0)
+    )
+    /// 评级 3 (Good) 翡翠绿色
+    static let amgiRatingGood = Color(
+        light: UIColor(red: 0.18, green: 0.72, blue: 0.45, alpha: 1.0),
+        dark: UIColor(red: 0.32, green: 0.86, blue: 0.58, alpha: 1.0)
+    )
+    /// 评级 4 (Easy) 电光湖蓝
+    static let amgiRatingEasy = Color(
+        light: UIColor(red: 0.12, green: 0.55, blue: 0.95, alpha: 1.0),
+        dark: UIColor(red: 0.35, green: 0.75, blue: 1.00, alpha: 1.0)
+    )
+
+    // MARK: - Holographic & Liquid Glass Accents
+    static let amgiHoloHighlight = Color(
+        light: UIColor(white: 1.0, alpha: 0.7),
+        dark: UIColor(white: 1.0, alpha: 0.35)
+    )
+    static let amgiGlassRimLight = Color(
+        light: UIColor(white: 1.0, alpha: 0.45),
+        dark: UIColor(white: 1.0, alpha: 0.18)
+    )
+    static let amgiGlassTint = Color(
+        light: UIColor(white: 0.96, alpha: 0.65),
+        dark: UIColor(white: 0.15, alpha: 0.65)
+    )
+
     init(light: UIColor, dark: UIColor) {
         self.init(
             uiColor: UIColor { traits in

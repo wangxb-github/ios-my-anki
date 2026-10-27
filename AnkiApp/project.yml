@@ -2,7 +2,7 @@ name: AnkiApp
 options:
   bundleIdPrefix: com.ankiapp
   deploymentTarget:
-    iOS: "18.0"
+    iOS: "26.0"
 settings:
   base:
     CLANG_CXX_LANGUAGE_STANDARD: "gnu++20"

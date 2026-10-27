@@ -37,6 +37,7 @@ struct CardWebView: UIViewRepresentable {
     let onAudioStateChange: ((Bool) -> Void)?
     let onCardBackgroundColorChange: ((UIColor, Bool) -> Void)?
     let onLookupRequested: ((String?, String?, CGPoint) -> Void)?
+    let onScrollOffsetChange: ((CGFloat) -> Void)?
 
     init(
         html: String,
@@ -57,7 +58,8 @@ struct CardWebView: UIViewRepresentable {
         onTypedAnswerSubmitted: ((String?) -> Void)? = nil,
         onAudioStateChange: ((Bool) -> Void)? = nil,
         onCardBackgroundColorChange: ((UIColor, Bool) -> Void)? = nil,
-        onLookupRequested: ((String?, String?, CGPoint) -> Void)? = nil
+        onLookupRequested: ((String?, String?, CGPoint) -> Void)? = nil,
+        onScrollOffsetChange: ((CGFloat) -> Void)? = nil
     ) {
         self.html = html
         self.cardCSS = cardCSS
@@ -78,6 +80,7 @@ struct CardWebView: UIViewRepresentable {
         self.onAudioStateChange = onAudioStateChange
         self.onCardBackgroundColorChange = onCardBackgroundColorChange
         self.onLookupRequested = onLookupRequested
+        self.onScrollOffsetChange = onScrollOffsetChange
     }
 
     func makeCoordinator() -> Coordinator {
@@ -85,7 +88,8 @@ struct CardWebView: UIViewRepresentable {
             onTypedAnswerSubmitted: onTypedAnswerSubmitted,
             onAudioStateChange: onAudioStateChange,
             onCardBackgroundColorChange: onCardBackgroundColorChange,
-            onLookupRequested: onLookupRequested
+            onLookupRequested: onLookupRequested,
+            onScrollOffsetChange: onScrollOffsetChange
         )
     }
 
@@ -110,6 +114,7 @@ struct CardWebView: UIViewRepresentable {
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
         webView.scrollView.showsVerticalScrollIndicator = false
+        webView.scrollView.delegate = context.coordinator
         webView.navigationDelegate = context.coordinator
         return webView
     }
@@ -1903,7 +1908,7 @@ struct CardWebView: UIViewRepresentable {
     // MARK: - Navigation Delegate
 
     @MainActor
-    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler, AVSpeechSynthesizerDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler, AVSpeechSynthesizerDelegate, UIScrollViewDelegate {
         var lastPageSignature: String?
         var lastContentSignature: String?
         var lastReplayRequestID: Int = 0
@@ -1917,6 +1922,7 @@ struct CardWebView: UIViewRepresentable {
         private let onAudioStateChange: ((Bool) -> Void)?
         private let onCardBackgroundColorChange: ((UIColor, Bool) -> Void)?
         private let onLookupRequested: ((String?, String?, CGPoint) -> Void)?
+        private let onScrollOffsetChange: ((CGFloat) -> Void)?
         private var lastThemePayload: String?
         private let speechSynthesizer = AVSpeechSynthesizer()
 
@@ -1924,14 +1930,20 @@ struct CardWebView: UIViewRepresentable {
             onTypedAnswerSubmitted: ((String?) -> Void)? = nil,
             onAudioStateChange: ((Bool) -> Void)? = nil,
             onCardBackgroundColorChange: ((UIColor, Bool) -> Void)? = nil,
-            onLookupRequested: ((String?, String?, CGPoint) -> Void)? = nil
+            onLookupRequested: ((String?, String?, CGPoint) -> Void)? = nil,
+            onScrollOffsetChange: ((CGFloat) -> Void)? = nil
         ) {
             self.onTypedAnswerSubmitted = onTypedAnswerSubmitted
             self.onAudioStateChange = onAudioStateChange
             self.onCardBackgroundColorChange = onCardBackgroundColorChange
             self.onLookupRequested = onLookupRequested
+            self.onScrollOffsetChange = onScrollOffsetChange
             super.init()
             speechSynthesizer.delegate = self
+        }
+
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            onScrollOffsetChange?(scrollView.contentOffset.y)
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -2197,6 +2209,114 @@ struct CardWebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             print("[CardWebView] Provisional navigation failed: \(error)")
+        }
+    }
+}
+
+// MARK: - 悬浮晶体卡片视图 (Liquid Crystal Card View)
+
+struct LiquidCrystalCardWebView: View {
+    let html: String
+    let cardCSS: String
+    let autoplayEnabled: Bool
+    let isAnswerSide: Bool
+    let cardOrdinal: UInt32
+    let replayRequestID: Int
+    let stopAudioRequestID: Int
+    let typedAnswerRequestID: Int
+    let replayMode: CardWebView.ReplayMode
+    let showInlineAudioReplayButtons: Bool
+    let openLinksExternally: Bool
+    let lookupPopupEnabled: Bool
+    let prefetchHTML: String?
+    let contentAlignment: CardWebView.ContentAlignment
+    let bottomContentInset: CGFloat
+    let onTypedAnswerSubmitted: ((String?) -> Void)?
+    let onAudioStateChange: ((Bool) -> Void)?
+    let onCardBackgroundColorChange: ((UIColor, Bool) -> Void)?
+    let onLookupRequested: ((String?, String?, CGPoint) -> Void)?
+    let onScrollOffsetChange: ((CGFloat) -> Void)?
+
+    init(
+        html: String,
+        cardCSS: String = "",
+        autoplayEnabled: Bool = true,
+        isAnswerSide: Bool = false,
+        cardOrdinal: UInt32 = 0,
+        replayRequestID: Int = 0,
+        stopAudioRequestID: Int = 0,
+        typedAnswerRequestID: Int = 0,
+        replayMode: CardWebView.ReplayMode = .question,
+        showInlineAudioReplayButtons: Bool = true,
+        openLinksExternally: Bool = true,
+        lookupPopupEnabled: Bool = true,
+        prefetchHTML: String? = nil,
+        contentAlignment: CardWebView.ContentAlignment = .center,
+        bottomContentInset: CGFloat = 0,
+        onTypedAnswerSubmitted: ((String?) -> Void)? = nil,
+        onAudioStateChange: ((Bool) -> Void)? = nil,
+        onCardBackgroundColorChange: ((UIColor, Bool) -> Void)? = nil,
+        onLookupRequested: ((String?, String?, CGPoint) -> Void)? = nil,
+        onScrollOffsetChange: ((CGFloat) -> Void)? = nil
+    ) {
+        self.html = html
+        self.cardCSS = cardCSS
+        self.autoplayEnabled = autoplayEnabled
+        self.isAnswerSide = isAnswerSide
+        self.cardOrdinal = cardOrdinal
+        self.replayRequestID = replayRequestID
+        self.stopAudioRequestID = stopAudioRequestID
+        self.typedAnswerRequestID = typedAnswerRequestID
+        self.replayMode = replayMode
+        self.showInlineAudioReplayButtons = showInlineAudioReplayButtons
+        self.openLinksExternally = openLinksExternally
+        self.lookupPopupEnabled = lookupPopupEnabled
+        self.prefetchHTML = prefetchHTML
+        self.contentAlignment = contentAlignment
+        self.bottomContentInset = bottomContentInset
+        self.onTypedAnswerSubmitted = onTypedAnswerSubmitted
+        self.onAudioStateChange = onAudioStateChange
+        self.onCardBackgroundColorChange = onCardBackgroundColorChange
+        self.onLookupRequested = onLookupRequested
+        self.onScrollOffsetChange = onScrollOffsetChange
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            CardWebView(
+                html: html,
+                cardCSS: cardCSS,
+                autoplayEnabled: autoplayEnabled,
+                isAnswerSide: isAnswerSide,
+                cardOrdinal: cardOrdinal,
+                replayRequestID: replayRequestID,
+                stopAudioRequestID: stopAudioRequestID,
+                typedAnswerRequestID: typedAnswerRequestID,
+                replayMode: replayMode,
+                showInlineAudioReplayButtons: showInlineAudioReplayButtons,
+                openLinksExternally: openLinksExternally,
+                lookupPopupEnabled: lookupPopupEnabled,
+                prefetchHTML: prefetchHTML,
+                contentAlignment: contentAlignment,
+                bottomContentInset: bottomContentInset,
+                onTypedAnswerSubmitted: onTypedAnswerSubmitted,
+                onAudioStateChange: onAudioStateChange,
+                onCardBackgroundColorChange: onCardBackgroundColorChange,
+                onLookupRequested: onLookupRequested,
+                onScrollOffsetChange: onScrollOffsetChange
+            )
+            .clipShape(.rect(corners: .concentric(minimum: .fixed(24)), isUniform: true))
+            .glassEffect(Glass.regular.interactive(), in: .rect(corners: .concentric(minimum: .fixed(24)), isUniform: true))
+            .overlay {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .strokeBorder(Color.amgiGlassRimLight, lineWidth: 1.5)
+                    .ankiIridescentHoloFoil(
+                        size: geo.size,
+                        tilt: MotionManager.shared.currentTilt,
+                        intensity: 0.35
+                    )
+                    .allowsHitTesting(false)
+            }
         }
     }
 }

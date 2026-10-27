@@ -10,6 +10,7 @@ private enum StatsPreferences {
 }
 
 private enum StatsChartSection: String, CaseIterable, Identifiable {
+    case memoryTerrain3D
     case futureDue
     case heatmap
     case reviews
@@ -26,6 +27,7 @@ private enum StatsChartSection: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
+        case .memoryTerrain3D: "3D Memory Space"
         case .futureDue: L("stats_future_due_title")
         case .heatmap: L("stats_heatmap_title")
         case .reviews: L("stats_reviews_title")
@@ -262,6 +264,15 @@ struct StatsDashboardView: View {
     @ViewBuilder
     private func chartView(for section: StatsChartSection, graphs: Anki_Stats_GraphsResponse) -> some View {
         switch section {
+        case .memoryTerrain3D:
+            let map: [Int: Int] = graphs.reviews.count.reduce(into: [:]) { acc, pair in
+                let rev = pair.value
+                let total = Int(rev.learn + rev.relearn + rev.young + rev.mature + rev.filtered)
+                if total > 0 {
+                    acc[Int(pair.key)] = total
+                }
+            }
+            MemoryTerrainChart3DView(dayCountMap: map)
         case .futureDue:
             FutureDueChart(futureDue: graphs.futureDue)
         case .heatmap:

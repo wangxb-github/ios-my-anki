@@ -23,6 +23,7 @@ struct DeckListView: View {
     @State private var showDeckExportShareSheet = false
     @State private var exportError: String?
     @State private var showExportError = false
+    @Namespace private var deckZoomNamespace
     var onDeckChanged: (() -> Void)? = nil
 
     init(onDeckChanged: (() -> Void)? = nil) {
@@ -58,6 +59,7 @@ struct DeckListView: View {
                                 node: node,
                                 depth: 0,
                                 isCollectionReady: collectionState.isReady,
+                                zoomNamespace: deckZoomNamespace,
                                 onDeckChanged: {
                                     Task { await loadDecks() }
                                     refreshHeatmap()
@@ -79,6 +81,7 @@ struct DeckListView: View {
                 .listStyle(.insetGrouped)
                 .navigationDestination(for: DeckInfo.self) { deck in
                     DeckDetailView(deck: deck)
+                        .navigationTransition(.zoom(sourceID: deck.id, in: deckZoomNamespace))
                 }
                 .refreshable {
                     await loadDecks()
@@ -233,6 +236,7 @@ private struct DeckRowView: View {
     let node: DeckTreeNode
     let depth: Int
     let isCollectionReady: Bool
+    let zoomNamespace: Namespace.ID
     let onDeckChanged: () -> Void
     let onDeleteRequested: (DeckTreeNode) -> Void
     let onExportRequested: (DeckTreeNode) -> Void
@@ -244,6 +248,11 @@ private struct DeckRowView: View {
 
     var body: some View {
         deckContent
+        .scrollTransition(.animated.threshold(.visible(0.9))) { content, phase in
+            content
+                .opacity(phase.isIdentity ? 1.0 : 0.82)
+                .scaleEffect(phase.isIdentity ? 1.0 : 0.97)
+        }
         .listRowBackground(Color.amgiSurfaceElevated)
         .alert(L("deck_rename_alert_title"), isPresented: $showRenamePrompt) {
             TextField(L("deck_rename_alert_placeholder"), text: $renameText)
@@ -275,6 +284,7 @@ private struct DeckRowView: View {
         NavigationLink(value: deckInfo) {
             rowContent
         }
+        .matchedTransitionSource(id: deckInfo.id, in: zoomNamespace)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             swipeButtons
         }
@@ -289,6 +299,7 @@ private struct DeckRowView: View {
                 NavigationLink(value: deckInfo) {
                     rowContent
                 }
+                .matchedTransitionSource(id: deckInfo.id, in: zoomNamespace)
             }
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 swipeButtons
@@ -300,6 +311,7 @@ private struct DeckRowView: View {
                 NavigationLink(value: deckInfo) {
                     rowContent
                 }
+                .matchedTransitionSource(id: deckInfo.id, in: zoomNamespace)
             }
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 swipeButtons
@@ -340,6 +352,7 @@ private struct DeckRowView: View {
                 node: child,
                 depth: depth + 1,
                 isCollectionReady: isCollectionReady,
+                zoomNamespace: zoomNamespace,
                 onDeckChanged: onDeckChanged,
                 onDeleteRequested: onDeleteRequested,
                 onExportRequested: onExportRequested

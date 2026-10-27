@@ -26,6 +26,7 @@ final class ReviewSession {
     private(set) var autoAdvanceAnswerSeconds: Double = 0
     private(set) var includeQuestionAudioOnAnswerReplay: Bool = true
     private(set) var sessionStats: SessionStats = .init()
+    private(set) var currentStreak: Int = 0
     private(set) var remainingCounts: DeckCounts = .zero
     private(set) var isFinished: Bool = false
     private(set) var canUndo: Bool = false
@@ -123,6 +124,11 @@ final class ReviewSession {
             applyQueuedCards(response)
 
             print("[ReviewSession] Started with \(cardQueue.count) cards, counts: new=\(remainingCounts.newCount) learn=\(remainingCounts.learnCount) review=\(remainingCounts.reviewCount)")
+            let resolvedDeckName = (try? deckClient.fetchNamesOnly().first(where: { $0.id == deckId })?.name) ?? "Study Session"
+            ReviewLiveActivityManager.shared.startActivity(
+                deckName: resolvedDeckName,
+                totalCards: remainingCounts.newCount + remainingCounts.learnCount + remainingCounts.reviewCount
+            )
             advanceToNextCard()
         } catch {
             print("[ReviewSession] Start failed: \(error)")
@@ -264,10 +270,25 @@ final class ReviewSession {
 
             sessionStats.reviewed += 1
             if rating != .again { sessionStats.correct += 1 }
+            if rating == .again {
+                currentStreak = 0
+            } else if rating == .good || rating == .easy {
+                currentStreak += 1
+            }
             sessionStats.totalTimeMs += Int(timeSpent)
 
             let response = try fetchQueuedCardsForCurrentDeck()
             applyQueuedCards(response)
+
+            let retention = sessionStats.reviewed > 0
+                ? Double(sessionStats.correct) / Double(sessionStats.reviewed)
+                : 1.0
+            ReviewLiveActivityManager.shared.updateProgress(
+                remaining: remainingCounts.newCount + remainingCounts.learnCount + remainingCounts.reviewCount,
+                streak: currentStreak,
+                lastRating: "\(rating)",
+                retentionRate: retention
+            )
 
             advanceToNextCard()
         } catch {
@@ -297,6 +318,7 @@ final class ReviewSession {
         guard let next = cardQueue.first else {
             isFinished = true
             currentQueuedCard = nil
+            ReviewLiveActivityManager.shared.endActivity()
             return
         }
 

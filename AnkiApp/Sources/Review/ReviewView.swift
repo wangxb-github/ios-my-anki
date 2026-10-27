@@ -70,7 +70,8 @@ struct ReviewView: View {
     @AppStorage(ReviewPreferences.Keys.lookupPopupFrontEnabled) private var prefLookupPopupFrontEnabled = false
     @AppStorage(ReviewPreferences.Keys.lookupPopupBackEnabled) private var prefLookupPopupBackEnabled = true
     @AppStorage(ReviewPreferences.Keys.cardContentAlignment) private var prefCardContentAlignmentRaw = CardWebView.ContentAlignment.top.rawValue
-    @AppStorage(ReviewPreferences.Keys.glassAnswerButtons) private var prefGlassAnswerButtons = false
+    @AppStorage(ReviewPreferences.Keys.glassAnswerButtons) private var prefGlassAnswerButtons = true
+    @State private var streakCount = 0
     @AppStorage(ReviewPreferences.Keys.autoMatchCardBackground) private var prefAutoMatchCardBackground = true
     @AppStorage(ReaderPreferences.Keys.popupWidth) private var popupWidth = 320
     @AppStorage(ReaderPreferences.Keys.popupHeight) private var popupHeight = 250
@@ -151,7 +152,12 @@ struct ReviewView: View {
 
     private var reviewLifecycleContent: some View {
         reviewNavigationContent
-        .background(cardChromeColor.ignoresSafeArea())
+        .background {
+            ZStack {
+                cardChromeColor.ignoresSafeArea()
+                LiquidAuroraBackground(streak: streakCount)
+            }
+        }
         .task {
             cardChromeIsDark = (colorScheme == .dark)
             session.start()
@@ -195,6 +201,7 @@ struct ReviewView: View {
         }
         .onDisappear {
             autoAdvanceTask?.cancel()
+            ReviewLiveActivityManager.shared.endActivity()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             isKeyboardVisible = true
@@ -481,42 +488,74 @@ struct ReviewView: View {
             : .question
 
         ZStack {
-            CardWebView(
-                html: cardHTML,
-                cardCSS: session.cardCSS,
-                autoplayEnabled: session.autoplayAudio,
-                isAnswerSide: session.showAnswer,
-                cardOrdinal: session.currentCard?.card.templateIdx ?? 0,
-                replayRequestID: replayRequestID,
-                stopAudioRequestID: stopAudioRequestID,
-                typedAnswerRequestID: typedAnswerRequestID,
-                replayMode: replayMode,
-                showInlineAudioReplayButtons: prefShowAudioReplayButton,
-                openLinksExternally: prefOpenLinksExternally,
-                lookupPopupEnabled: isLookupPopupEnabledForCurrentSide,
-                prefetchHTML: session.showAnswer ? nil : session.backHTML,
-                contentAlignment: prefCardContentAlignment,
-                bottomContentInset: actionBarHeight,
-                onTypedAnswerSubmitted: { typedAnswer in
-                    session.revealAnswer(typedAnswer: typedAnswer)
-                },
-                onAudioStateChange: { isPlaying in
-                    Task { @MainActor in
-                        self.isAudioPlaying = isPlaying
+            SpatialCardStackView(
+                showAnswer: session.showAnswer,
+                onFlip: {
+                    if !session.showAnswer {
+                        if session.requiresTypedAnswerInput {
+                            typedAnswerRequestID += 1
+                        } else {
+                            session.revealAnswer()
+                        }
                     }
                 },
-                onCardBackgroundColorChange: { color, isDark in
-                    Task { @MainActor in
-                        self.cardChromeUIColor = color
-                        self.cardChromeIsDark = isDark
-                    }
-                },
-                onLookupRequested: { selection, sentence, point in
-                    handleCardLookup(selection, sentence: sentence, at: point)
+                onRating: { rating in
+                    handleRatingSelection(rating)
                 }
-            )
+            ) {
+                LiquidCrystalCardWebView(
+                    html: cardHTML,
+                    cardCSS: session.cardCSS,
+                    autoplayEnabled: session.autoplayAudio,
+                    isAnswerSide: session.showAnswer,
+                    cardOrdinal: session.currentCard?.card.templateIdx ?? 0,
+                    replayRequestID: replayRequestID,
+                    stopAudioRequestID: stopAudioRequestID,
+                    typedAnswerRequestID: typedAnswerRequestID,
+                    replayMode: replayMode,
+                    showInlineAudioReplayButtons: prefShowAudioReplayButton,
+                    openLinksExternally: prefOpenLinksExternally,
+                    lookupPopupEnabled: isLookupPopupEnabledForCurrentSide,
+                    prefetchHTML: session.showAnswer ? nil : session.backHTML,
+                    contentAlignment: prefCardContentAlignment,
+                    bottomContentInset: actionBarHeight,
+                    onTypedAnswerSubmitted: { typedAnswer in
+                        session.revealAnswer(typedAnswer: typedAnswer)
+                    },
+                    onAudioStateChange: { isPlaying in
+                        Task { @MainActor in
+                            self.isAudioPlaying = isPlaying
+                        }
+                    },
+                    onCardBackgroundColorChange: { color, isDark in
+                        Task { @MainActor in
+                            self.cardChromeUIColor = color
+                            self.cardChromeIsDark = isDark
+                        }
+                    },
+                    onLookupRequested: { selection, sentence, point in
+                        handleCardLookup(selection, sentence: sentence, at: point)
+                    }
+                )
+            }
 
             reviewLookupOverlay
+        }
+        .overlay(alignment: .top) {
+            if streakCount >= 3 {
+                HStack(spacing: 6) {
+                    Image(systemName: "flame.fill")
+                        .foregroundColor(.orange)
+                    Text("\(streakCount) STREAK")
+                        .font(.system(size: 13, weight: .black, design: .rounded))
+                        .foregroundColor(.primary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .ankiLiquidGlass(minimumCorner: 14)
+                .padding(.top, 8)
+                .transition(.scale.combined(with: .opacity))
+            }
         }
         .overlay(alignment: .bottom) {
             cardActionBar
@@ -531,7 +570,49 @@ struct ReviewView: View {
     @ViewBuilder
     private var cardActionBar: some View {
         Group {
-            if session.showAnswer {
+            if prefGlassAnswerButtons && prefShowAnswerButtons {
+                VStack(spacing: 0) {
+                    if session.showAnswer, prefShowContextMenuButton, !session.isFinished, let current = session.currentCard {
+                        HStack {
+                            Spacer()
+                            CardContextMenu(
+                                cardId: current.card.id,
+                                noteId: current.card.noteID,
+                                onActionSuccess: { shouldAdvance in
+                                    if shouldAdvance {
+                                        session.refreshAndAdvance()
+                                    } else {
+                                        Task { await session.refreshAfterCardMutation() }
+                                    }
+                                },
+                                onRequestSetDueDate: { _ in
+                                    openSetDueDateForCurrentCard()
+                                }
+                            )
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                    }
+
+                    LiquidMorphingDock(
+                        showAnswer: session.showAnswer,
+                        visibleRatings: visibleRatings,
+                        nextIntervals: prefShowRemainingDays ? session.nextIntervals : [:],
+                        showAnswerTitle: L("review_show_answer"),
+                        ratingTitle: { ratingLabel($0) },
+                        onShowAnswer: {
+                            if session.requiresTypedAnswerInput {
+                                typedAnswerRequestID += 1
+                            } else {
+                                session.revealAnswer()
+                            }
+                        },
+                        onRatingSelected: { rating in
+                            handleRatingSelection(rating)
+                        }
+                    )
+                }
+            } else if session.showAnswer {
                 VStack(spacing: 0) {
                     HStack {
                         Spacer()
@@ -597,9 +678,6 @@ struct ReviewView: View {
                 .animation(.easeInOut(duration: 0.18), value: usesCompactShowAnswerButton)
             }
         }
-        // Keep the floating review controls transparent so they do not paint an
-        // opaque strip over the card content again. The surrounding review screen
-        // still provides the toolbar/safe-area chrome color.
         .background(.clear)
     }
 
@@ -840,6 +918,16 @@ struct ReviewView: View {
             .buttonStyle(.borderedProminent)
             .tint(color)
         }
+    }
+
+    private func handleRatingSelection(_ rating: Rating) {
+        if rating == .good || rating == .easy {
+            streakCount += 1
+            HapticSymphony.shared.playComboPulse(streak: streakCount)
+        } else if rating == .again {
+            streakCount = 0
+        }
+        ratingButtonAction(rating)
     }
 
     private func ratingButtonAction(_ rating: Rating) {
