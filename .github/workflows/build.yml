@@ -3,6 +3,7 @@ name: Build Unsigned IPA
 on:
   push:
     branches:
+      - master
       - main
   workflow_dispatch:
 
