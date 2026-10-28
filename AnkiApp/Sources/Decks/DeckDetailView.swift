@@ -53,7 +53,13 @@ struct DeckDetailView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .background(Color.amgiBackground)
+        .background {
+            ZStack {
+                Color.amgiBackground.ignoresSafeArea()
+                LiquidAuroraBackground(streak: counts.total > 0 ? 5 : 1)
+                    .opacity(0.18)
+            }
+        }
         .navigationTitle(shortTitle)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
@@ -234,49 +240,94 @@ struct DeckDetailView: View {
 
     private var countsSection: some View {
         Section {
-            HStack {
-                VStack(alignment: .leading) {
-                    Text(L("deck_detail_count_new"))
-                        .amgiFont(.caption)
-                        .foregroundStyle(Color.amgiTextSecondary)
-                    Text("\(counts.newCount)")
-                        .amgiStatusText(.accent, font: .sectionHeading)
-                }
-                Spacer()
-                VStack(alignment: .leading) {
-                    Text(L("deck_detail_count_learning"))
-                        .amgiFont(.caption)
-                        .foregroundStyle(Color.amgiTextSecondary)
-                    Text("\(counts.learnCount)")
-                        .amgiStatusText(.warning, font: .sectionHeading)
-                }
-                Spacer()
-                VStack(alignment: .leading) {
-                    Text(L("deck_detail_count_review"))
-                        .amgiFont(.caption)
-                        .foregroundStyle(Color.amgiTextSecondary)
-                    Text("\(counts.reviewCount)")
-                        .amgiStatusText(.positive, font: .sectionHeading)
-                }
+            HStack(spacing: 10) {
+                detailStatBox(
+                    title: L("deck_detail_count_new"),
+                    value: counts.newCount,
+                    color: .amgiAccent,
+                    icon: "plus.circle.fill"
+                )
+                detailStatBox(
+                    title: L("deck_detail_count_learning"),
+                    value: counts.learnCount,
+                    color: .amgiRatingHard,
+                    icon: "flame.fill"
+                )
+                detailStatBox(
+                    title: L("deck_detail_count_review"),
+                    value: counts.reviewCount,
+                    color: .amgiRatingGood,
+                    icon: "arrow.triangle.2.circlepath.circle.fill"
+                )
             }
-            .padding(.vertical, 8)
-            .listRowBackground(Color.amgiSurfaceElevated)
+            .padding(.vertical, 4)
+            .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         }
     }
 
+    private func detailStatBox(title: String, value: Int, color: Color, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(color)
+                Text(title)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.amgiTextSecondary)
+                    .lineLimit(1)
+            }
+            Text("\(value)")
+                .font(.system(size: 24, weight: .heavy, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(color)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(color.opacity(0.32), lineWidth: 1)
+        )
+    }
+
     private var studySection: some View {
-        Section {
+        let canStudy = collectionState.isReady && counts.total > 0
+        let buttonTint = canStudy ? Color.amgiAccent : Color.gray.opacity(0.5)
+        return Section {
             Button {
                 showReview = true
             } label: {
-                Label(L("deck_detail_study_now"), systemImage: "play.fill")
-                    .frame(maxWidth: .infinity)
-                    .amgiFont(.bodyEmphasis)
+                HStack(spacing: 10) {
+                    Image(systemName: canStudy ? "play.fill" : "checkmark.seal.fill")
+                        .font(.system(size: 16, weight: .bold))
+                    Text(L("deck_detail_study_now"))
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                    if counts.total > 0 {
+                        Text("(\(counts.total))")
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .opacity(0.9)
+                    }
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 56)
+                .contentShape(Capsule())
             }
-            .foregroundStyle(Color.amgiAccent)
+            .buttonStyle(.plain)
+            .glassEffect(Glass.regular.tint(buttonTint).interactive(), in: .capsule)
+            .overlay(
+                Capsule()
+                    .strokeBorder(Color.white.opacity(0.28), lineWidth: 1)
+                    .allowsHitTesting(false)
+            )
+            .shadow(color: canStudy ? Color.amgiAccent.opacity(0.35) : .clear, radius: 12, y: 4)
             .matchedTransitionSource(id: "study-\(deck.id)", in: studyZoomNamespace)
-            .disabled(!collectionState.isReady || counts.total == 0)
-            .listRowBackground(Color.amgiSurfaceElevated)
+            .disabled(!canStudy)
+            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 8, trailing: 0))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         }
     }
 

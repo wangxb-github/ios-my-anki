@@ -93,6 +93,13 @@ struct StatsDashboardView: View {
             }
             .padding()
         }
+        .background {
+            ZStack {
+                Color.amgiBackground.ignoresSafeArea()
+                LiquidAuroraBackground(streak: 3)
+                    .opacity(0.16)
+            }
+        }
         .navigationTitle(L("stats_nav_title"))
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
