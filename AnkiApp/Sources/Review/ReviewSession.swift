@@ -323,10 +323,10 @@ final class ReviewSession {
         }
 
         currentQueuedCard = next
-        showAnswer = false
         reviewStartTime = .now
 
         renderCurrentCard(next)
+        showAnswer = false
 
         // Extract next intervals from scheduling states
         let states = next.states

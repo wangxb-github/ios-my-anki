@@ -9,7 +9,7 @@
     <key>CFBundleName</key>
     <string>$(PRODUCT_NAME)</string>
     <key>CFBundleDisplayName</key>
-    <string>Amgi</string>
+    <string>Anki</string>
     <key>CFBundleIdentifier</key>
     <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
     <key>CFBundleVersion</key>
@@ -17,9 +17,9 @@
     <key>CFBundleShortVersionString</key>
     <string>0.1.0</string>
     <key>NSCameraUsageDescription</key>
-    <string>Amgi 需要使用相机来拍照并将图片插入到笔记字段中。</string>
+    <string>Anki 需要使用相机来拍照并将图片插入到笔记字段中。</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Amgi 需要使用麦克风来录制音频并将录音插入到笔记字段中。</string>
+    <string>Anki 需要使用麦克风来录制音频并将录音插入到笔记字段中。</string>
     <key>NSSupportsLiveActivities</key>
     <true/>
     <key>UIFileSharingEnabled</key>

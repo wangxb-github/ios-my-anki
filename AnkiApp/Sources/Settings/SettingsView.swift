@@ -1105,7 +1105,7 @@ private struct AboutView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: AmgiSpacing.xl) {
                 VStack(alignment: .leading, spacing: AmgiSpacing.sm) {
-                    Text("Amgi")
+                    Text("Anki")
                         .amgiFont(.displayHero)
                         .foregroundStyle(Color.amgiTextPrimary)
                     Text(L("about_summary_text"))

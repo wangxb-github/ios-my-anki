@@ -186,8 +186,8 @@ struct CardWebView: UIViewRepresentable {
             context.coordinator.isPageLoaded = false
             context.coordinator.pendingUpdateScript = nil
             let htmlClass = Self.htmlClasses(isDarkMode: isDarkMode)
-            let playIconHTML = Self.audioButtonIconHTML(systemName: "play.circle", alt: "Play", isDarkMode: isDarkMode)
-            let pauseIconHTML = Self.audioButtonIconHTML(systemName: "pause.circle", alt: "Pause", isDarkMode: isDarkMode)
+            let playIconHTML = Self.audioButtonIconHTML(systemName: "play.circle.fill", alt: "Play", isDarkMode: isDarkMode)
+            let pauseIconHTML = Self.audioButtonIconHTML(systemName: "pause.circle.fill", alt: "Pause", isDarkMode: isDarkMode)
             let baseTag = CardAssetPath.mediaBaseTag()
             // Stash the show-card call so we can run it once the page finishes loading.
             context.coordinator.pendingUpdateScript = showCardScript
@@ -299,7 +299,7 @@ struct CardWebView: UIViewRepresentable {
             }
             body {
                 font-family: -apple-system, system-ui;
-                font-size: 18px; line-height: 1.5;
+                font-size: 21px; line-height: 1.5;
                 color: var(--amgi-default-card-fg); background: var(--amgi-default-card-bg);
                 padding: 0 0 var(--amgi-body-padding-bottom, 16px);
                 margin: 20px; min-height: calc(100vh - 40px); box-sizing: border-box; text-align: center;
@@ -310,6 +310,12 @@ struct CardWebView: UIViewRepresentable {
                 background-attachment: fixed;
             }
             body.amgi-centered { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 40px); }
+            body.amgi-question-side #qa {
+                zoom: 1.32;
+            }
+            #rubric, .rubric, div[id="rubric"], div[class="rubric"] {
+                display: none !important;
+            }
             .card-frame {
                 width: 100%; box-sizing: border-box;
                 padding-bottom: var(--amgi-card-padding-bottom, 0px);
@@ -326,8 +332,27 @@ struct CardWebView: UIViewRepresentable {
             img { max-width: 100%; max-height: 95vh; height: auto; border-radius: 8px; }
             li { text-align: start; }
             pre { text-align: left; }
-            .sound-btn { display: inline-flex; align-items: center; justify-content: center; margin: 4px; }
+            .sound-btn {
+                display: inline-flex; align-items: center; justify-content: center; margin: 6px;
+                vertical-align: middle;
+            }
             .sound-btn audio { display: none; }
+            .replay-button, .replay-btn {
+                display: inline-flex !important;
+                align-items: center;
+                justify-content: center;
+                width: 48px !important;
+                height: 48px !important;
+                border-radius: 24px;
+                background: rgba(53, 152, 255, 0.14);
+                border: 1.5px solid rgba(53, 152, 255, 0.35);
+                text-decoration: none !important;
+                vertical-align: middle;
+            }
+            .replay-button:active, .replay-btn:active {
+                transform: scale(0.92);
+                background: rgba(53, 152, 255, 0.26);
+            }
             #typeans {
                 width: 100%; box-sizing: border-box; line-height: 1.75;
                 padding: 10px 12px; border-radius: 10px;
@@ -610,6 +635,7 @@ struct CardWebView: UIViewRepresentable {
             document.body.className = s.bodyClass || document.body.className;
             document.body.style.setProperty('--amgi-body-padding-bottom', (s.bodyPaddingBottom || 16) + 'px');
             document.body.classList.toggle('amgi-centered', !s.alignTop);
+            document.body.classList.toggle('amgi-question-side', !s.isAnswerSide);
             if (qa) qa.style.setProperty('--amgi-card-padding-bottom', (s.cardPaddingBottom || 0) + 'px');
         }
 
@@ -654,8 +680,19 @@ struct CardWebView: UIViewRepresentable {
         document.addEventListener('click', function(event) {
             var state = amgiCardState();
             if (state.renderedAt && Date.now() - state.renderedAt < 180) return;
+            if (window.__amgiLastInteractiveClickAt && Date.now() - window.__amgiLastInteractiveClickAt < 450) return;
+            var interactiveSelector = 'a, button, input, textarea, select, option, audio, video, summary, details, [contenteditable], .replay-button, .replay-btn, .sound-btn, .amgi-inline-icon, #image-occlusion-canvas, [onclick]';
+            if (typeof event.composedPath === 'function') {
+                var path = event.composedPath();
+                for (var i = 0; i < path.length; i++) {
+                    var node = path[i];
+                    if (node && node.nodeType === 1 && node.matches && node.matches(interactiveSelector)) {
+                        return;
+                    }
+                }
+            }
             var target = event.target && event.target.nodeType === 1 ? event.target : (event.target ? event.target.parentElement : null);
-            if (target && target.closest('a, button, input, textarea, select, option, audio, video, summary, details, [contenteditable], .replay-button, .replay-btn, .sound-btn, #image-occlusion-canvas, [onclick]')) {
+            if (target && target.closest(interactiveSelector)) {
                 return;
             }
             var payload = amgiCardLookupPayloadAt(event.clientX, event.clientY, 16);
@@ -975,11 +1012,16 @@ struct CardWebView: UIViewRepresentable {
             });
         }
         async function amgiSetInnerHTML(element, html) {
-            // Pause & drain video elements first (mirrors upstream setInnerHTML)
-            Array.from(element.getElementsByTagName('video')).forEach(function(v) {
-                v.pause();
-                while (v.firstChild) v.removeChild(v.firstChild);
-                v.load();
+            // Pause & drain audio and video elements first
+            Array.from(element.querySelectorAll('audio, video')).forEach(function(m) {
+                try {
+                    m.onended = null;
+                    m.onerror = null;
+                    m.pause();
+                    m.removeAttribute('src');
+                    while (m.firstChild) m.removeChild(m.firstChild);
+                    m.load();
+                } catch(e) {}
             });
             element.innerHTML = html;
             amgiHoistDynamicHeadResources(element);
@@ -989,6 +1031,10 @@ struct CardWebView: UIViewRepresentable {
         }
 
         // ── Audio ────────────────────────────────────────────────────────────
+        window.__amgiAudioSessionId = 0;
+        window.__amgiActiveQueuePlayer = null;
+        window.__amgiLastInteractiveClickAt = 0;
+
         function setAudioButtonState(btn, state) {
             if (!btn) return;
             btn.innerHTML = state === 'pause' ? PAUSE_ICON_HTML : PLAY_ICON_HTML;
@@ -1001,35 +1047,43 @@ struct CardWebView: UIViewRepresentable {
             try { window.webkit.messageHandlers.amgiStopTts.postMessage(null); } catch(e) {}
         }
         window.amgiStopTts = amgiStopTts;
-        function amgiQueuePlayer() {
-            var player = document.getElementById('amgi-audio-queue-player');
-            if (player) return player;
-            player = document.createElement('audio');
-            player.id = 'amgi-audio-queue-player';
-            player.preload = 'auto';
-            player.style.display = 'none';
-            document.body.appendChild(player);
-            return player;
-        }
         function amgiHasTemplateManagedMedia() {
             return document.querySelector('audio:not(.anki-sound-audio):not(#amgi-audio-queue-player), video') !== null;
         }
         function stopAllSystemAudio() {
+            window.__amgiAudioSessionId = (window.__amgiAudioSessionId || 0) + 1;
             amgiStopTts();
-            document.querySelectorAll('.anki-sound-audio').forEach(function(a) {
-                if (!a.paused) a.pause();
-                a.currentTime = 0;
-                setAudioButtonState(a.nextElementSibling, 'play');
-                a.onended = null;
+            if (window.__amgiActiveQueuePlayer) {
+                var active = window.__amgiActiveQueuePlayer;
+                window.__amgiActiveQueuePlayer = null;
+                try {
+                    active.onended = null;
+                    active.onerror = null;
+                    active.pause();
+                    active.removeAttribute('src');
+                    active.load();
+                } catch(e) {}
+            }
+            document.querySelectorAll('audio').forEach(function(a) {
+                try {
+                    a.onended = null;
+                    a.onerror = null;
+                    if (!a.paused) a.pause();
+                    a.currentTime = 0;
+                    if (a.classList.contains('anki-sound-audio')) {
+                        setAudioButtonState(a.nextElementSibling, 'play');
+                    }
+                } catch(e) {}
             });
             var queuePlayer = document.getElementById('amgi-audio-queue-player');
             if (queuePlayer) {
-                queuePlayer.pause();
-                queuePlayer.currentTime = 0;
-                queuePlayer.onended = null;
-                queuePlayer.onerror = null;
-                queuePlayer.removeAttribute('src');
-                queuePlayer.load();
+                try {
+                    queuePlayer.onended = null;
+                    queuePlayer.onerror = null;
+                    queuePlayer.pause();
+                    queuePlayer.removeAttribute('src');
+                    queuePlayer.load();
+                } catch(e) {}
             }
             notifyAudioState(false);
         }
@@ -1037,9 +1091,6 @@ struct CardWebView: UIViewRepresentable {
         function collectAudioQueue(mode) {
             var all = Array.from(document.querySelectorAll('.anki-sound-audio'));
             if (mode === 'question' || mode === 'answerWithQuestion') return all;
-            // answerOnly: exclude audio already played on the question side.
-            // This correctly handles audio fields placed before <hr id=answer> in
-            // the back template (e.g. {{发音}} between {{FrontSide}} and <hr id=answer>).
             var questionSrcs = window.__amgiQuestionAudioSrcs;
             if (questionSrcs && questionSrcs.size > 0) {
                 var newAudio = all.filter(function(a) {
@@ -1048,7 +1099,6 @@ struct CardWebView: UIViewRepresentable {
                 });
                 return newAudio.length > 0 ? newAudio : all;
             }
-            // Fallback: use <hr id=answer> position when question srcs are unavailable.
             var marker = document.getElementById('answer');
             if (!marker) return all;
             var after = all.filter(function(a) {
@@ -1074,9 +1124,9 @@ struct CardWebView: UIViewRepresentable {
         function replaySequential(queue) {
             stopAllSystemAudio();
             if (!queue || !queue.length) return;
+            var sessionId = ++window.__amgiAudioSessionId;
             var idx = 0;
             var currentBtn = null;
-            var player = amgiQueuePlayer();
             notifyAudioState(true);
             function clearCurrentButton() {
                 if (!currentBtn) return;
@@ -1084,19 +1134,40 @@ struct CardWebView: UIViewRepresentable {
                 currentBtn = null;
             }
             function playNext() {
+                if (sessionId !== window.__amgiAudioSessionId) return;
                 clearCurrentButton();
-                if (idx >= queue.length) { notifyAudioState(false); return; }
+                if (idx >= queue.length) {
+                    window.__amgiActiveQueuePlayer = null;
+                    notifyAudioState(false);
+                    return;
+                }
                 var audio = queue[idx];
-                var src = audio.currentSrc || audio.src;
-                if (!src) { idx++; playNext(); return; }
+                var rawSrc = audio ? (audio.getAttribute('src') || audio.src) : '';
+                if (!rawSrc) { idx++; playNext(); return; }
+                var resolvedSrc = rawSrc;
+                try { resolvedSrc = new URL(rawSrc, document.baseURI).toString(); } catch(e) {}
                 currentBtn = audio.nextElementSibling;
                 setAudioButtonState(currentBtn, 'pause');
-                player.src = src;
-                player.currentTime = 0;
-                player.play().catch(function() { idx++; playNext(); });
+                var player = new Audio();
+                player.preload = 'auto';
+                window.__amgiActiveQueuePlayer = player;
+                player.onended = function() {
+                    if (sessionId !== window.__amgiAudioSessionId) return;
+                    idx++;
+                    playNext();
+                };
+                player.onerror = function() {
+                    if (sessionId !== window.__amgiAudioSessionId) return;
+                    idx++;
+                    playNext();
+                };
+                player.src = resolvedSrc;
+                player.play().catch(function() {
+                    if (sessionId !== window.__amgiAudioSessionId) return;
+                    idx++;
+                    playNext();
+                });
             }
-            player.onended = function() { idx++; playNext(); };
-            player.onerror = function() { idx++; playNext(); };
             playNext();
         }
         function amgiReplayAll(mode) {
@@ -1105,16 +1176,15 @@ struct CardWebView: UIViewRepresentable {
         }
         window.amgiReplayAll = amgiReplayAll;
         function amgiPlayAudioElement(audio) {
+            window.__amgiLastInteractiveClickAt = Date.now();
             if (!audio) return false;
-            stopAllSystemAudio(); notifyAudioState(true);
-            var btn = audio.nextElementSibling;
-            audio.currentTime = 0;
-            audio.play().catch(function() { setAudioButtonState(btn, 'play'); notifyAudioState(false); });
-            setAudioButtonState(btn, 'pause');
-            audio.onended = function() { setAudioButtonState(btn, 'play'); notifyAudioState(false); };
+            replaySequential([audio]);
             return false;
         }
-        function playSound(btn) { return amgiPlayAudioElement(btn ? btn.previousElementSibling : null); }
+        function playSound(btn) {
+            window.__amgiLastInteractiveClickAt = Date.now();
+            return amgiPlayAudioElement(btn ? btn.previousElementSibling : null);
+        }
         window.playSound = playSound; globalThis.playSound = playSound;
 
         // ── pycmd (compat shim) ──────────────────────────────────────────────
@@ -1152,6 +1222,7 @@ struct CardWebView: UIViewRepresentable {
 
         // ── TTS ──────────────────────────────────────────────────────────────
         function amgiSpeakTts(btn) {
+            window.__amgiLastInteractiveClickAt = Date.now();
             if (!btn) return false;
             stopAllSystemAudio();
             try {
@@ -1434,7 +1505,10 @@ struct CardWebView: UIViewRepresentable {
         amgiAddBrowserClasses();
 
         // ── Core QA update (mirrors upstream _updateQA) ──────────────────────
-        async function amgiUpdateQA(html, state, onupdate, onshown) {
+        window.__amgiRenderId = 0;
+
+        async function amgiUpdateQA(html, state, onupdate, onshown, renderId) {
+            if (renderId !== undefined && renderId !== window.__amgiRenderId) return;
             window.onUpdateHook = [];
             window.onShownHook = [];
             if (typeof onupdate === 'function') window.onUpdateHook.push(onupdate);
@@ -1444,22 +1518,22 @@ struct CardWebView: UIViewRepresentable {
             if (!qa) return;
 
             stopAllSystemAudio();
+            qa.style.transition = 'none';
+            qa.style.opacity = '0';
+            qa.innerHTML = '';
             var normalizedHTML = amgiNormalizeMathJaxMarkup(html || '');
             var needsMathJax = amgiContainsMathJaxMarkup(normalizedHTML);
-            var preloadPromise = amgiPreloadResources(normalizedHTML);
             var mathJaxPromise = needsMathJax ? amgiEnsureMathJaxReady(1500) : Promise.resolve(null);
 
             try {
-                await preloadPromise;
-                // Keep the previous card visible while resources warm, and only
-                // hide right before swapping the DOM to avoid blank-frame flashes.
-                qa.style.transition = 'none';
-                qa.style.opacity = '0';
+                if (renderId !== undefined && renderId !== window.__amgiRenderId) return;
+                stopAllSystemAudio();
                 amgiApplyCardState(state || {});
 
                 try { await amgiSetInnerHTML(qa, normalizedHTML); }
                 catch(e) { qa.innerHTML = '<div>Error: ' + String(e).replace(/\\n/g,'<br>') + '</div>'; }
 
+                if (renderId !== undefined && renderId !== window.__amgiRenderId) return;
                 await amgiRunHooks(window.onUpdateHook);
 
                 if (needsMathJax) {
@@ -1508,6 +1582,7 @@ struct CardWebView: UIViewRepresentable {
             typeInput.focus(); ensureVisible();
         }
 
+                if (renderId !== undefined && renderId !== window.__amgiRenderId) return;
                 amgiSetupImageOcclusion();
                 await amgiRunHooks(window.onShownHook);
             } finally {
@@ -1526,6 +1601,8 @@ struct CardWebView: UIViewRepresentable {
 
         // ── Public API called from Swift via evaluateJavaScript ───────────────
         function _showQuestion(html, prefetchHTML, bodyclass, autoplay, replayMode, alignTop, bodyPaddingBottom, cardPaddingBottom, lookupPopupEnabled) {
+            stopAllSystemAudio();
+            var myRenderId = ++window.__amgiRenderId;
             amgiQueueAction(function() {
                 return amgiUpdateQA(
                     html,
@@ -1547,10 +1624,9 @@ struct CardWebView: UIViewRepresentable {
                         window.__amgiQuestionAudioSrcs = null;
                     },
                     function() {
+                        if (myRenderId !== window.__amgiRenderId) return;
                         var typeans = document.getElementById('typeans');
                         if (typeans) typeans.focus();
-                        var hasTemplateManagedMedia = amgiHasTemplateManagedMedia();
-                        if (amgiAutoplayEnabled() && !hasTemplateManagedMedia) amgiReplayAll(amgiReplayModeValue());
                         // Record question-side audio srcs so the answer side can
                         // avoid re-playing them when using answerOnly mode.
                         window.__amgiQuestionAudioSrcs = new Set(
@@ -1558,17 +1634,21 @@ struct CardWebView: UIViewRepresentable {
                                 return a.getAttribute('src') || '';
                             }).filter(Boolean)
                         );
+                        var hasTemplateManagedMedia = amgiHasTemplateManagedMedia();
+                        if (amgiAutoplayEnabled() && !hasTemplateManagedMedia) amgiReplayAll(amgiReplayModeValue());
                         var ph = amgiPrefetchHTMLValue();
                         if (amgiContainsMathJaxMarkup(html || '') || amgiContainsMathJaxMarkup(ph || '')) {
                             void amgiEnsureMathJaxReady(1500);
                         }
-                        if (ph) amgiAllImagesLoaded().then(function() { return amgiPreloadResources(ph); });
-                    }
+                    },
+                    myRenderId
                 );
             });
         }
 
         function _showAnswer(html, bodyclass, autoplay, replayMode, alignTop, bodyPaddingBottom, cardPaddingBottom, lookupPopupEnabled) {
+            stopAllSystemAudio();
+            var myRenderId = ++window.__amgiRenderId;
             amgiQueueAction(function() {
                 return amgiUpdateQA(
                     html,
@@ -1592,9 +1672,11 @@ struct CardWebView: UIViewRepresentable {
                         });
                     },
                     function() {
+                        if (myRenderId !== window.__amgiRenderId) return;
                         var hasTemplateManagedMedia = amgiHasTemplateManagedMedia();
                         if (amgiAutoplayEnabled() && !hasTemplateManagedMedia) amgiReplayAll(amgiReplayModeValue());
-                    }
+                    },
+                    myRenderId
                 );
             });
         }
@@ -1660,10 +1742,10 @@ struct CardWebView: UIViewRepresentable {
             let encoded = filename.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? filename
             let replacement: String
             if showReplayButtons {
-                let iconHTML = audioButtonIconHTML(systemName: "play.circle", alt: "Play", isDarkMode: isDarkMode)
-                replacement = "<span class=\"sound-btn\"><audio class=\"anki-sound-audio\" src=\"\(encoded)\" preload=\"auto\"></audio><a class=\"replay-button replay-btn soundLink\" href=\"#\" draggable=\"false\" onclick=\"return playSound(this)\">\(iconHTML)</a></span>"
+                let iconHTML = audioButtonIconHTML(systemName: "play.circle.fill", alt: "Play", isDarkMode: isDarkMode)
+                replacement = "<span class=\"sound-btn\"><audio class=\"anki-sound-audio\" src=\"\(encoded)\" preload=\"none\"></audio><a class=\"replay-button replay-btn soundLink\" href=\"javascript:void(0)\" draggable=\"false\" onclick=\"window.__amgiLastInteractiveClickAt=Date.now(); if(event){event.stopPropagation();event.preventDefault();} return playSound(this);\">\(iconHTML)</a></span>"
             } else {
-                replacement = "<span class=\"sound-btn\"><audio class=\"anki-sound-audio\" src=\"\(encoded)\" preload=\"auto\"></audio></span>"
+                replacement = "<span class=\"sound-btn\"><audio class=\"anki-sound-audio\" src=\"\(encoded)\" preload=\"none\"></audio></span>"
             }
             result.replaceSubrange(matchRange, with: replacement)
         }
@@ -1697,8 +1779,8 @@ struct CardWebView: UIViewRepresentable {
 
             let replacement: String
             if showReplayButtons {
-                let iconHTML = audioButtonIconHTML(systemName: "play.circle", alt: "Speak", isDarkMode: isDarkMode)
-                replacement = "<a class=\"replay-button replay-btn tts-btn\" href=\"#\" draggable=\"false\" data-tts-text=\"\(htmlAttributeEscaped(spokenText))\" data-tts-lang=\"\(htmlAttributeEscaped(lang))\" data-tts-voices=\"\(htmlAttributeEscaped(voices))\" data-tts-speed=\"\(htmlAttributeEscaped(speed))\" onclick=\"return amgiSpeakTts(this)\">\(iconHTML)</a>"
+                let iconHTML = audioButtonIconHTML(systemName: "play.circle.fill", alt: "Speak", isDarkMode: isDarkMode)
+                replacement = "<a class=\"replay-button replay-btn tts-btn\" href=\"javascript:void(0)\" draggable=\"false\" data-tts-text=\"\(htmlAttributeEscaped(spokenText))\" data-tts-lang=\"\(htmlAttributeEscaped(lang))\" data-tts-voices=\"\(htmlAttributeEscaped(voices))\" data-tts-speed=\"\(htmlAttributeEscaped(speed))\" onclick=\"window.__amgiLastInteractiveClickAt=Date.now(); if(event){event.stopPropagation();event.preventDefault();} return amgiSpeakTts(this);\">\(iconHTML)</a>"
             } else {
                 replacement = ""
             }
@@ -1769,8 +1851,10 @@ struct CardWebView: UIViewRepresentable {
     }
 
     private static func audioButtonIconHTML(systemName: String, alt: String, isDarkMode: Bool) -> String {
-        let configuration = UIImage.SymbolConfiguration(pointSize: 24, weight: .regular, scale: .medium)
-        let tint = isDarkMode ? UIColor.white : UIColor(red: 26 / 255, green: 26 / 255, blue: 26 / 255, alpha: 1)
+        let configuration = UIImage.SymbolConfiguration(pointSize: 30, weight: .semibold, scale: .medium)
+        let tint = isDarkMode
+            ? UIColor(red: 0.42, green: 0.72, blue: 1.0, alpha: 1.0)
+            : UIColor(red: 0.10, green: 0.48, blue: 0.92, alpha: 1.0)
         guard let baseImage = UIImage(systemName: systemName, withConfiguration: configuration) else {
             return alt
         }
@@ -1785,7 +1869,7 @@ struct CardWebView: UIViewRepresentable {
             return alt
         }
 
-        return "<img class=\"amgi-inline-icon\" src=\"data:image/png;base64,\(data.base64EncodedString())\" alt=\"\(alt)\" draggable=\"false\" style=\"width:28px;height:28px;max-width:none;display:block;flex:none;\" />"
+        return "<img class=\"amgi-inline-icon\" src=\"data:image/png;base64,\(data.base64EncodedString())\" alt=\"\(alt)\" draggable=\"false\" style=\"width:34px;height:34px;max-width:none;display:block;flex:none;pointer-events:none;\" />"
     }
 
     private static func jsStringLiteral(_ value: String) -> String {
