@@ -288,7 +288,7 @@ final class AppSyncCoordinator: ObservableObject {
         case .syncingMedia:
             return L("sync_syncing_media")
         case .mediaProgress(let total, let downloaded):
-            return L("sync_media_progress", downloaded, total)
+            return "已下载 \(downloaded) 个媒体文件（已扫描记录 \(total) 条）"
         case .mediaRetry(let failed, let attempt, let delay):
             return L("sync_media_retry", failed, attempt, delay)
         case .noteStats(let added, let removed):

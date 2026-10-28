@@ -118,8 +118,8 @@ public actor MediaDownloader: Sendable {
             )
 
             if status.hasProgress {
-                let addedCount = Self.extractNumber(from: status.progress.added)
-                let checkedCount = Self.extractNumber(from: status.progress.checked)
+                let addedCount = Self.extractDownloadedCount(from: status.progress.added)
+                let checkedCount = Self.extractCheckedCount(from: status.progress.checked)
                 if addedCount != lastReportedAdded || checkedCount != lastReportedChecked {
                     lastReportedAdded = addedCount
                     lastReportedChecked = checkedCount
@@ -140,13 +140,21 @@ public actor MediaDownloader: Sendable {
         logger.info("Backend syncMedia completed and verified via MediaSyncStatus")
     }
 
-    private nonisolated static func extractNumber(from text: String) -> Int {
-        // Extracts the first integer found in strings like "Added: 120" or "Checked 450"
-        let digits = text.split { !$0.isNumber }
-        if let first = digits.first, let val = Int(first) {
-            return val
+    private nonisolated static func extractDownloadedCount(from addedText: String) -> Int {
+        // Anki formats media added progress as:
+        // "Added: {up}↑ {down}↓" or "已新增：{up}↑ {down}↓"
+        // First integer is uploaded_files ({up}), second integer is downloaded_files ({down}).
+        let numbers = addedText.split { !$0.isNumber }.compactMap { Int($0) }
+        if numbers.count >= 2 {
+            return numbers[1]
         }
-        return 0
+        return numbers.last ?? 0
+    }
+
+    private nonisolated static func extractCheckedCount(from checkedText: String) -> Int {
+        // Format: "Checked {count}" or "已检查：{count}"
+        let numbers = checkedText.split { !$0.isNumber }.compactMap { Int($0) }
+        return numbers.last ?? 0
     }
 }
 

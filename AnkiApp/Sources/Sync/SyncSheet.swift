@@ -201,39 +201,43 @@ struct SyncSheet: View {
                     .controlSize(.small)
             }
 
-            VStack(spacing: 8) {
-                HStack {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(L("sync_syncing_media"))
+                    .amgiFont(.bodyEmphasis)
+                    .foregroundStyle(Color.amgiTextPrimary)
+
+                HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(L("sync_syncing_media"))
-                            .amgiFont(.bodyEmphasis)
-                            .foregroundStyle(Color.amgiTextPrimary)
-                        Text(L("sync_media_size_info", downloaded, total))
-                            .amgiFont(.caption)
+                        Text("已下载媒体文件")
+                            .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(Color.amgiTextSecondary)
+                        Text("\(downloaded)")
+                            .font(.system(size: 22, weight: .heavy, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(Color.amgiRatingGood)
                     }
-                    Spacer()
-                }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(Color.amgiRatingGood.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                if total > 0 {
-                    ProgressView(value: Double(downloaded), total: Double(total))
-                        .tint(Color.amgiAccent)
-
-                    HStack {
-                        Text("\(downloaded) / \(total)")
-                            .font(.system(size: 11, weight: .regular, design: .monospaced))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("已扫描云端记录")
+                            .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(Color.amgiTextSecondary)
-                        Spacer()
-                        let percentage = total > 0 ? Int(Double(downloaded) * 100 / Double(total)) : 0
-                        Text("\(percentage)%")
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        Text("\(total)")
+                            .font(.system(size: 22, weight: .heavy, design: .rounded))
+                            .monospacedDigit()
                             .foregroundStyle(Color.amgiAccent)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(Color.amgiAccent.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
             }
             .padding()
             .background(
                 Color.amgiSurfaceElevated,
-                in: RoundedRectangle(cornerRadius: 12)
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
             )
 
             syncLogView(height: syncLogHeight)
