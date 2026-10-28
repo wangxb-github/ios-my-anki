@@ -943,21 +943,33 @@ struct ReviewView: View {
                 isPaused: session.showAnswer,
                 streakCount: streakCount
             )
-            .padding(.top, 8)
-            .transition(.scale.combined(with: .opacity))
+            .padding(.top, 2)
+            .transition(.opacity)
         } else if streakCount >= 3 {
-            HStack(spacing: 6) {
-                Image(systemName: "flame.fill")
-                    .foregroundColor(.orange)
-                Text("\(streakCount) STREAK")
-                    .font(.system(size: 13, weight: .black, design: .rounded))
-                    .foregroundColor(.primary)
+            HStack {
+                Spacer()
+                HStack(spacing: 4) {
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.orange.opacity(0.9))
+                    Text("\(streakCount)")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(Color.amgiTextSecondary)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3.5)
+                .background(Color.amgiSurface.opacity(0.55), in: Capsule())
+                .overlay(
+                    Capsule()
+                        .strokeBorder(Color.orange.opacity(0.25), lineWidth: 0.8)
+                )
+                .opacity(0.76)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .ankiLiquidGlass(minimumCorner: 14)
+            .padding(.horizontal, 14)
             .padding(.top, 8)
-            .transition(.scale.combined(with: .opacity))
+            .allowsHitTesting(false)
+            .transition(.opacity)
         }
     }
 
