@@ -56,7 +56,10 @@ struct ReviewView: View {
     @State private var lookupErrorMessage: String?
     @State private var showLookupError = false
 
-    @AppStorage(ReviewPreferences.Keys.playAudioInSilentMode) private var prefPlayAudioInSilentMode = false
+    @AppStorage(ReviewPreferences.Keys.playAudioInSilentMode) private var prefPlayAudioInSilentMode = true
+    @AppStorage(ReviewPreferences.Keys.autoplayAudio) private var prefAutoplayAudio = true
+    @AppStorage(ReviewPreferences.Keys.showCardTimer) private var prefShowCardTimer = true
+    @AppStorage(ReviewPreferences.Keys.tapBlankAreaToAdvance) private var prefTapBlankAreaToAdvance = true
     @AppStorage(ReviewPreferences.Keys.showContextMenuButton) private var prefShowContextMenuButton = true
     @AppStorage(ReviewPreferences.Keys.showAudioReplayButton) private var prefShowAudioReplayButton = true
     @AppStorage(ReviewPreferences.Keys.showCorrectnessSymbols) private var prefShowCorrectnessSymbols = false
@@ -74,6 +77,7 @@ struct ReviewView: View {
     @State private var streakCount = 0
     @State private var burstTrigger = 0
     @State private var burstRating: Rating = .good
+    @State private var cardTimerStartDate: Date = .now
     @AppStorage(ReviewPreferences.Keys.autoMatchCardBackground) private var prefAutoMatchCardBackground = true
     @AppStorage(ReaderPreferences.Keys.popupWidth) private var popupWidth = 320
     @AppStorage(ReaderPreferences.Keys.popupHeight) private var popupHeight = 250
@@ -165,6 +169,7 @@ struct ReviewView: View {
         }
         .task {
             cardChromeIsDark = (colorScheme == .dark)
+            cardTimerStartDate = .now
             session.start()
             configureAudioSession()
             scheduleAutoAdvanceIfNeeded()
@@ -179,6 +184,7 @@ struct ReviewView: View {
             }
         }
         .onChange(of: session.currentCard?.card.id) { _, _ in
+            cardTimerStartDate = .now
             lookupStack.removeAll()
             scheduleAutoAdvanceIfNeeded()
         }
@@ -442,6 +448,18 @@ struct ReviewView: View {
         }
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
+                Toggle(isOn: $prefShowCardTimer) {
+                    Label("显示正面计时器", systemImage: "timer")
+                }
+                Toggle(isOn: $prefAutoplayAudio) {
+                    Label("自动播放音频", systemImage: "speaker.wave.2.fill")
+                }
+                Toggle(isOn: $prefTapBlankAreaToAdvance) {
+                    Label("点击空白处翻牌/记住", systemImage: "hand.tap.fill")
+                }
+
+                Divider()
+
                 Button {
                     showDeckStats = true
                 } label: {
@@ -513,7 +531,7 @@ struct ReviewView: View {
                 LiquidCrystalCardWebView(
                     html: cardHTML,
                     cardCSS: session.cardCSS,
-                    autoplayEnabled: session.autoplayAudio,
+                    autoplayEnabled: prefAutoplayAudio && session.autoplayAudio,
                     isAnswerSide: session.showAnswer,
                     cardOrdinal: session.currentCard?.card.templateIdx ?? 0,
                     replayRequestID: replayRequestID,
@@ -542,6 +560,9 @@ struct ReviewView: View {
                     },
                     onLookupRequested: { selection, sentence, point in
                         handleCardLookup(selection, sentence: sentence, at: point)
+                    },
+                    onBlankAreaTapped: {
+                        handleBlankAreaTap()
                     }
                 )
             }
@@ -549,20 +570,7 @@ struct ReviewView: View {
             reviewLookupOverlay
         }
         .overlay(alignment: .top) {
-            if streakCount >= 3 {
-                HStack(spacing: 6) {
-                    Image(systemName: "flame.fill")
-                        .foregroundColor(.orange)
-                    Text("\(streakCount) STREAK")
-                        .font(.system(size: 13, weight: .black, design: .rounded))
-                        .foregroundColor(.primary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .ankiLiquidGlass(minimumCorner: 14)
-                .padding(.top, 8)
-                .transition(.scale.combined(with: .opacity))
-            }
+            topReviewOverlay
         }
         .overlay(alignment: .bottom) {
             cardActionBar
@@ -924,6 +932,49 @@ struct ReviewView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(color)
+        }
+    }
+
+    @ViewBuilder
+    private var topReviewOverlay: some View {
+        if prefShowCardTimer && !session.showAnswer && !session.isFinished {
+            LiquidCardTimerView(
+                startDate: cardTimerStartDate,
+                isPaused: session.showAnswer,
+                streakCount: streakCount
+            )
+            .padding(.top, 8)
+            .transition(.scale.combined(with: .opacity))
+        } else if streakCount >= 3 {
+            HStack(spacing: 6) {
+                Image(systemName: "flame.fill")
+                    .foregroundColor(.orange)
+                Text("\(streakCount) STREAK")
+                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .foregroundColor(.primary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .ankiLiquidGlass(minimumCorner: 14)
+            .padding(.top, 8)
+            .transition(.scale.combined(with: .opacity))
+        }
+    }
+
+    private func handleBlankAreaTap() {
+        guard prefTapBlankAreaToAdvance, !session.isFinished else { return }
+        if !lookupStack.isEmpty {
+            lookupStack.removeAll()
+            return
+        }
+        if !session.showAnswer {
+            if session.requiresTypedAnswerInput {
+                typedAnswerRequestID += 1
+            } else {
+                session.revealAnswer()
+            }
+        } else {
+            handleRatingSelection(.good)
         }
     }
 

@@ -16,11 +16,13 @@ private enum SyncPreferenceValues {
     static let ioTimeoutSecsKeyBase = "sync_pref_io_timeout_secs"
     static let customMode = "custom"
     static let lastCollectionSyncBase = "sync_pref_collection_last_synced_at"
+    static let redirectedEndpointKeyBase = "sync_pref_redirected_endpoint"
 
     static var modeKey: String { scoped(modeKeyBase) }
     static var syncMediaKey: String { scoped(syncMediaKeyBase) }
     static var ioTimeoutSecsKey: String { scoped(ioTimeoutSecsKeyBase) }
     static var lastCollectionSyncKey: String { scoped(lastCollectionSyncBase) }
+    static var redirectedEndpointKey: String { scoped(redirectedEndpointKeyBase) }
 
     private static func scoped(_ base: String) -> String {
         "\(base).\(currentProfileID())"
@@ -46,6 +48,8 @@ private func configuredSyncAuth(hostKey: String, endpointOverride: String? = nil
     } else if UserDefaults.standard.string(forKey: SyncPreferenceValues.modeKey) == SyncPreferenceValues.customMode,
               let endpoint = KeychainHelper.loadEndpoint() {
         auth.endpoint = endpoint
+    } else if let redirected = UserDefaults.standard.string(forKey: SyncPreferenceValues.redirectedEndpointKey)?.nilIfBlank {
+        auth.endpoint = redirected
     }
 
     let timeout = UserDefaults.standard.integer(forKey: SyncPreferenceValues.ioTimeoutSecsKey)
@@ -195,6 +199,7 @@ extension SyncClient: DependencyKey {
                     // Update endpoint if server redirected
                     if response.hasNewEndpoint, !response.newEndpoint.isEmpty {
                         auth.endpoint = response.newEndpoint
+                        UserDefaults.standard.set(response.newEndpoint, forKey: SyncPreferenceValues.redirectedEndpointKey)
                     }
 
                     switch response.required {
@@ -301,6 +306,7 @@ extension SyncClient: DependencyKey {
 
                             if response.hasNewEndpoint, !response.newEndpoint.isEmpty {
                                 auth.endpoint = response.newEndpoint
+                                UserDefaults.standard.set(response.newEndpoint, forKey: SyncPreferenceValues.redirectedEndpointKey)
                             }
 
                             let fullSyncEndpoint = auth.hasEndpoint ? auth.endpoint : nil
@@ -338,7 +344,7 @@ extension SyncClient: DependencyKey {
 
                                 await session.start()
 
-                                let mediaAuth = configuredSyncAuth(hostKey: hostKey)
+                                let mediaAuth = auth
                                 var attemptCount = 0
 
                                 do {
@@ -393,18 +399,23 @@ extension SyncClient: DependencyKey {
                     continuation.onTermination = { @Sendable _ in task.cancel() }
                 }
             },
-            fullSync: { direction, serverUsn, endpoint in
+            fullSync: { direction, _, endpoint in
                 let hostKey = KeychainHelper.loadHostKey() ?? ""
                 guard !hostKey.isEmpty else { throw SyncError.authFailed }
+
+                if let endpoint = endpoint?.nilIfBlank {
+                    UserDefaults.standard.set(endpoint, forKey: SyncPreferenceValues.redirectedEndpointKey)
+                }
 
                 let auth = configuredSyncAuth(hostKey: hostKey, endpointOverride: endpoint)
 
                 var req = Anki_Sync_FullUploadOrDownloadRequest()
                 req.auth = auth
                 req.upload = (direction == .upload)
-                if let serverUsn {
-                    req.serverUsn = serverUsn
-                }
+                // Do not pass serverUsn here because reopenAfterFullSync() closes and reopens
+                // the collection immediately after fullUploadOrDownload, which would abort
+                // any background media sync thread started inside full_sync_inner.
+                // Media sync is executed explicitly via syncMediaWithProgress after reopen.
 
                 do {
                     try syncBackend.callVoid(

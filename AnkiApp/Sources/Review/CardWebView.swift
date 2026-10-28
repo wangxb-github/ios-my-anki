@@ -38,6 +38,7 @@ struct CardWebView: UIViewRepresentable {
     let onCardBackgroundColorChange: ((UIColor, Bool) -> Void)?
     let onLookupRequested: ((String?, String?, CGPoint) -> Void)?
     let onScrollOffsetChange: ((CGFloat) -> Void)?
+    let onBlankAreaTapped: (() -> Void)?
 
     init(
         html: String,
@@ -59,7 +60,8 @@ struct CardWebView: UIViewRepresentable {
         onAudioStateChange: ((Bool) -> Void)? = nil,
         onCardBackgroundColorChange: ((UIColor, Bool) -> Void)? = nil,
         onLookupRequested: ((String?, String?, CGPoint) -> Void)? = nil,
-        onScrollOffsetChange: ((CGFloat) -> Void)? = nil
+        onScrollOffsetChange: ((CGFloat) -> Void)? = nil,
+        onBlankAreaTapped: (() -> Void)? = nil
     ) {
         self.html = html
         self.cardCSS = cardCSS
@@ -81,6 +83,7 @@ struct CardWebView: UIViewRepresentable {
         self.onCardBackgroundColorChange = onCardBackgroundColorChange
         self.onLookupRequested = onLookupRequested
         self.onScrollOffsetChange = onScrollOffsetChange
+        self.onBlankAreaTapped = onBlankAreaTapped
     }
 
     func makeCoordinator() -> Coordinator {
@@ -89,7 +92,8 @@ struct CardWebView: UIViewRepresentable {
             onAudioStateChange: onAudioStateChange,
             onCardBackgroundColorChange: onCardBackgroundColorChange,
             onLookupRequested: onLookupRequested,
-            onScrollOffsetChange: onScrollOffsetChange
+            onScrollOffsetChange: onScrollOffsetChange,
+            onBlankAreaTapped: onBlankAreaTapped
         )
     }
 
@@ -104,6 +108,7 @@ struct CardWebView: UIViewRepresentable {
         config.userContentController.add(context.coordinator, name: "amgiSubmitTypedAnswer")
         config.userContentController.add(context.coordinator, name: "amgiCardTheme")
         config.userContentController.add(context.coordinator, name: "amgiLookupText")
+        config.userContentController.add(context.coordinator, name: "amgiBlankTap")
         
         // Enable media playback without user interaction
         config.mediaTypesRequiringUserActionForPlayback = []
@@ -127,6 +132,7 @@ struct CardWebView: UIViewRepresentable {
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "amgiSubmitTypedAnswer")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "amgiCardTheme")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "amgiLookupText")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "amgiBlankTap")
         coordinator.stopTTS()
     }
 
@@ -288,6 +294,8 @@ struct CardWebView: UIViewRepresentable {
                 overflow-x: hidden;
                 -webkit-text-size-adjust: 100%;
                 text-size-adjust: 100%;
+                -webkit-tap-highlight-color: transparent;
+                cursor: pointer;
             }
             body {
                 font-family: -apple-system, system-ui;
@@ -645,10 +653,20 @@ struct CardWebView: UIViewRepresentable {
 
         document.addEventListener('click', function(event) {
             var state = amgiCardState();
-            if (state.renderedAt && Date.now() - state.renderedAt < 300) return;
+            if (state.renderedAt && Date.now() - state.renderedAt < 180) return;
+            var target = event.target && event.target.nodeType === 1 ? event.target : (event.target ? event.target.parentElement : null);
+            if (target && target.closest('a, button, input, textarea, select, option, audio, video, summary, details, [contenteditable], .replay-button, .replay-btn, .sound-btn, #image-occlusion-canvas, [onclick]')) {
+                return;
+            }
             var payload = amgiCardLookupPayloadAt(event.clientX, event.clientY, 16);
-            if (!payload) return;
-            window.webkit.messageHandlers.amgiLookupText.postMessage(payload);
+            if (payload) {
+                window.webkit.messageHandlers.amgiLookupText.postMessage(payload);
+                return;
+            }
+            var sel = window.getSelection ? window.getSelection().toString().trim() : '';
+            if (!sel && window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.amgiBlankTap) {
+                window.webkit.messageHandlers.amgiBlankTap.postMessage({});
+            }
         }, false);
 
         function amgiSetCardCSS(cssText) {
@@ -1923,6 +1941,7 @@ struct CardWebView: UIViewRepresentable {
         private let onCardBackgroundColorChange: ((UIColor, Bool) -> Void)?
         private let onLookupRequested: ((String?, String?, CGPoint) -> Void)?
         private let onScrollOffsetChange: ((CGFloat) -> Void)?
+        private let onBlankAreaTapped: (() -> Void)?
         private var lastThemePayload: String?
         private let speechSynthesizer = AVSpeechSynthesizer()
 
@@ -1931,13 +1950,15 @@ struct CardWebView: UIViewRepresentable {
             onAudioStateChange: ((Bool) -> Void)? = nil,
             onCardBackgroundColorChange: ((UIColor, Bool) -> Void)? = nil,
             onLookupRequested: ((String?, String?, CGPoint) -> Void)? = nil,
-            onScrollOffsetChange: ((CGFloat) -> Void)? = nil
+            onScrollOffsetChange: ((CGFloat) -> Void)? = nil,
+            onBlankAreaTapped: (() -> Void)? = nil
         ) {
             self.onTypedAnswerSubmitted = onTypedAnswerSubmitted
             self.onAudioStateChange = onAudioStateChange
             self.onCardBackgroundColorChange = onCardBackgroundColorChange
             self.onLookupRequested = onLookupRequested
             self.onScrollOffsetChange = onScrollOffsetChange
+            self.onBlankAreaTapped = onBlankAreaTapped
             super.init()
             speechSynthesizer.delegate = self
         }
@@ -1996,6 +2017,11 @@ struct CardWebView: UIViewRepresentable {
                 let x = (body["x"] as? NSNumber).map { CGFloat(truncating: $0) } ?? 0
                 let y = (body["y"] as? NSNumber).map { CGFloat(truncating: $0) } ?? 0
                 onLookupRequested?(text, sentence, CGPoint(x: x, y: y))
+                return
+            }
+
+            if message.name == "amgiBlankTap" {
+                onBlankAreaTapped?()
                 return
             }
 
@@ -2236,6 +2262,7 @@ struct LiquidCrystalCardWebView: View {
     let onCardBackgroundColorChange: ((UIColor, Bool) -> Void)?
     let onLookupRequested: ((String?, String?, CGPoint) -> Void)?
     let onScrollOffsetChange: ((CGFloat) -> Void)?
+    let onBlankAreaTapped: (() -> Void)?
 
     init(
         html: String,
@@ -2257,7 +2284,8 @@ struct LiquidCrystalCardWebView: View {
         onAudioStateChange: ((Bool) -> Void)? = nil,
         onCardBackgroundColorChange: ((UIColor, Bool) -> Void)? = nil,
         onLookupRequested: ((String?, String?, CGPoint) -> Void)? = nil,
-        onScrollOffsetChange: ((CGFloat) -> Void)? = nil
+        onScrollOffsetChange: ((CGFloat) -> Void)? = nil,
+        onBlankAreaTapped: (() -> Void)? = nil
     ) {
         self.html = html
         self.cardCSS = cardCSS
@@ -2279,6 +2307,7 @@ struct LiquidCrystalCardWebView: View {
         self.onCardBackgroundColorChange = onCardBackgroundColorChange
         self.onLookupRequested = onLookupRequested
         self.onScrollOffsetChange = onScrollOffsetChange
+        self.onBlankAreaTapped = onBlankAreaTapped
     }
 
     var body: some View {
@@ -2302,7 +2331,8 @@ struct LiquidCrystalCardWebView: View {
             onAudioStateChange: onAudioStateChange,
             onCardBackgroundColorChange: onCardBackgroundColorChange,
             onLookupRequested: onLookupRequested,
-            onScrollOffsetChange: onScrollOffsetChange
+            onScrollOffsetChange: onScrollOffsetChange,
+            onBlankAreaTapped: onBlankAreaTapped
         )
     }
 }

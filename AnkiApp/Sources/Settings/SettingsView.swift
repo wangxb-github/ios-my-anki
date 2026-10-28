@@ -463,13 +463,16 @@ private struct ReviewOptionsView: View {
 
     @Dependency(\.ankiBackend) var backend
 
-    @AppStorage(ReviewPreferences.Keys.playAudioInSilentMode) private var playAudioInSilentMode = false
+    @AppStorage(ReviewPreferences.Keys.playAudioInSilentMode) private var playAudioInSilentMode = true
+    @AppStorage(ReviewPreferences.Keys.autoplayAudio) private var autoplayAudio = true
+    @AppStorage(ReviewPreferences.Keys.showCardTimer) private var showCardTimer = true
+    @AppStorage(ReviewPreferences.Keys.tapBlankAreaToAdvance) private var tapBlankAreaToAdvance = true
     @AppStorage(ReviewPreferences.Keys.showContextMenuButton) private var showContextMenuButton = true
     @AppStorage(ReviewPreferences.Keys.showAudioReplayButton) private var showAudioReplayButton = true
     @AppStorage(ReviewPreferences.Keys.showCorrectnessSymbols) private var showCorrectnessSymbols = false
     @AppStorage(ReviewPreferences.Keys.disperseAnswerButtons) private var disperseAnswerButtons = false
     @AppStorage(ReviewPreferences.Keys.showAnswerButtons) private var showAnswerButtons = true
-    @AppStorage(ReviewPreferences.Keys.hideHardAndEasyButtons) private var hideHardAndEasyButtons = false
+    @AppStorage(ReviewPreferences.Keys.hideHardAndEasyButtons) private var hideHardAndEasyButtons = true
     @AppStorage(ReviewPreferences.Keys.showRemainingDays) private var showRemainingDays = true
     @AppStorage(ReviewPreferences.Keys.showNextReviewTime) private var showNextReviewTime = false
     @AppStorage(ReviewPreferences.Keys.openLinksExternally) private var openLinksExternally = true
@@ -477,7 +480,7 @@ private struct ReviewOptionsView: View {
     @AppStorage(ReviewPreferences.Keys.lookupPopupFrontEnabled) private var lookupPopupFrontEnabled = false
     @AppStorage(ReviewPreferences.Keys.lookupPopupBackEnabled) private var lookupPopupBackEnabled = true
     @AppStorage(ReviewPreferences.Keys.cardContentAlignment) private var cardContentAlignmentRaw = CardAlignment.top.rawValue
-    @AppStorage(ReviewPreferences.Keys.glassAnswerButtons) private var glassAnswerButtons = false
+    @AppStorage(ReviewPreferences.Keys.glassAnswerButtons) private var glassAnswerButtons = true
     @AppStorage(ReviewPreferences.Keys.autoMatchCardBackground) private var autoMatchCardBackground = true
     @State private var loadBalancerEnabled = false
     @State private var fsrsShortTermWithStepsEnabled = false
@@ -497,11 +500,14 @@ private struct ReviewOptionsView: View {
     var body: some View {
         List {
             Section(L("settings_review_section_audio")) {
+                Toggle("自动播放卡片音频", isOn: $autoplayAudio)
                 Toggle(L("settings_review_play_audio_in_silent_mode"), isOn: $playAudioInSilentMode)
             }
             .amgiSettingsListRowSurface()
 
             Section(L("settings_review_section_ui")) {
+                Toggle("显示卡片正面华丽计时器", isOn: $showCardTimer)
+                Toggle("点击空白处翻牌 / 标记记住", isOn: $tapBlankAreaToAdvance)
                 Toggle(L("settings_review_show_context_menu_button"), isOn: $showContextMenuButton)
                 Toggle(L("settings_review_show_audio_replay_button"), isOn: $showAudioReplayButton)
                 Toggle(L("settings_review_show_correctness_symbols"), isOn: $showCorrectnessSymbols)

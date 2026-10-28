@@ -34,6 +34,9 @@ enum ReviewPreferences {
         static let cardContentAlignment = "review_pref_card_content_alignment"
         static let glassAnswerButtons = "review_pref_glass_answer_buttons"
         static let autoMatchCardBackground = "review_pref_auto_match_card_background"
+        static let autoplayAudio = "review_pref_autoplay_audio"
+        static let showCardTimer = "review_pref_show_card_timer"
+        static let tapBlankAreaToAdvance = "review_pref_tap_blank_area_to_advance"
     }
 }
 

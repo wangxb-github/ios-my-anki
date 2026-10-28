@@ -153,9 +153,29 @@ final class AppSyncCoordinator: ObservableObject {
             guard let self else { return }
             do {
                 try await syncClient.fullSync(direction, requirement.serverUsn, requirement.endpoint)
+                let syncMediaKey = SyncPreferences.Keys.syncMediaForCurrentUser()
+                let shouldSyncMedia = UserDefaults.standard.object(forKey: syncMediaKey) == nil
+                    ? true
+                    : UserDefaults.standard.bool(forKey: syncMediaKey)
+
+                if shouldSyncMedia {
+                    for try await event in syncClient.syncMediaWithProgress() {
+                        try Task.checkCancellation()
+                        await MainActor.run {
+                            self.apply(event, syncMediaEnabled: true)
+                        }
+                    }
+                } else {
+                    await MainActor.run {
+                        self.appendLog(L("sync_log_complete"))
+                        self.state = .success(SyncSummary())
+                    }
+                }
                 await MainActor.run {
-                    self.appendLog(L("sync_log_complete"))
-                    self.state = .success(SyncSummary())
+                    if case .success = self.state {} else {
+                        self.appendLog(L("sync_log_complete"))
+                        self.state = .success(SyncSummary())
+                    }
                     self.activeTask = nil
                     self.endBackgroundExecutionIfNeeded()
                 }
