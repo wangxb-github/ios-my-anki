@@ -62,7 +62,7 @@ struct ReviewView: View {
     @AppStorage(ReviewPreferences.Keys.showCorrectnessSymbols) private var prefShowCorrectnessSymbols = false
     @AppStorage(ReviewPreferences.Keys.disperseAnswerButtons) private var prefDisperseAnswerButtons = false
     @AppStorage(ReviewPreferences.Keys.showAnswerButtons) private var prefShowAnswerButtons = true
-    @AppStorage(ReviewPreferences.Keys.hideHardAndEasyButtons) private var prefHideHardAndEasyButtons = false
+    @AppStorage(ReviewPreferences.Keys.hideHardAndEasyButtons) private var prefHideHardAndEasyButtons = true
     @AppStorage(ReviewPreferences.Keys.showRemainingDays) private var prefShowRemainingDays = true
     @AppStorage(ReviewPreferences.Keys.showNextReviewTime) private var prefShowNextReviewTime = false
     @AppStorage(ReviewPreferences.Keys.openLinksExternally) private var prefOpenLinksExternally = true
@@ -72,6 +72,8 @@ struct ReviewView: View {
     @AppStorage(ReviewPreferences.Keys.cardContentAlignment) private var prefCardContentAlignmentRaw = CardWebView.ContentAlignment.top.rawValue
     @AppStorage(ReviewPreferences.Keys.glassAnswerButtons) private var prefGlassAnswerButtons = true
     @State private var streakCount = 0
+    @State private var burstTrigger = 0
+    @State private var burstRating: Rating = .good
     @AppStorage(ReviewPreferences.Keys.autoMatchCardBackground) private var prefAutoMatchCardBackground = true
     @AppStorage(ReaderPreferences.Keys.popupWidth) private var popupWidth = 320
     @AppStorage(ReaderPreferences.Keys.popupHeight) private var popupHeight = 250
@@ -493,6 +495,8 @@ struct ReviewView: View {
         ZStack {
             SpatialCardStackView(
                 showAnswer: session.showAnswer,
+                externalBurstTrigger: burstTrigger,
+                externalBurstRating: burstRating,
                 onFlip: {
                     if !session.showAnswer {
                         if session.requiresTypedAnswerInput {
@@ -890,7 +894,7 @@ struct ReviewView: View {
     }
 
     private var visibleRatings: [Rating] {
-        prefHideHardAndEasyButtons ? [.again, .good] : [.again, .hard, .good, .easy]
+        [.again, .good]
     }
 
     private func ratingColor(_ rating: Rating) -> Color {
@@ -924,11 +928,14 @@ struct ReviewView: View {
     }
 
     private func handleRatingSelection(_ rating: Rating) {
+        burstRating = rating
+        burstTrigger += 1
         if rating == .good || rating == .easy {
             streakCount += 1
             HapticSymphony.shared.playComboPulse(streak: streakCount)
         } else if rating == .again {
             streakCount = 0
+            HapticSymphony.shared.playThresholdSnap(for: .again)
         }
         ratingButtonAction(rating)
     }

@@ -2,58 +2,17 @@ import SwiftUI
 import Charts
 import Spatial
 
-/// 基于 iOS 26 原生 Chart3D 的三维记忆山脉与空间体素统计视图
+/// 基于 iOS 26 原生 Chart3D 的 FSRS 三维记忆留存曲面视图（支持双指捏合缩放、按钮无级缩放与多视角切换）
 public struct MemoryTerrainChart3DView: View {
-    public enum DisplayMode: String, CaseIterable, Identifiable {
-        case terrain = "Terrain"
-        case voxel = "3D Voxel"
-
-        public var id: String { rawValue }
-    }
-
-    /// 真实复习计数映射：dayOffset (0 为今天, -1 为昨天...) -> 复习卡片数
     public let dayCountMap: [Int: Int]
 
-    @State private var mode: DisplayMode = .terrain
     @State private var cameraPose: Chart3DPose = .default
+    @State private var zoomScale: CGFloat = 1.35
+    @State private var gestureZoom: CGFloat = 1.0
+    @State private var isExpanded: Bool = false
 
-    private struct VoxelSample: Identifiable {
-        let id: Int
-        let week: Double
-        let weekday: Double
-        let count: Double
-    }
-
-    private var voxels: [VoxelSample] {
-        var items: [VoxelSample] = []
-        var id = 0
-        let hasRealData = !dayCountMap.isEmpty
-        for w in 1...6 {
-            for d in 1...7 {
-                let dayOffset = -((6 - w) * 7 + (7 - d))
-                let val: Double
-                if hasRealData {
-                    val = Double(dayCountMap[dayOffset] ?? 0)
-                } else {
-                    val = Double((w * 7 + d * 13) % 25 + 5)
-                }
-                items.append(
-                    VoxelSample(
-                        id: id,
-                        week: Double(w),
-                        weekday: Double(d),
-                        count: val
-                    )
-                )
-                id += 1
-            }
-        }
-        return items
-    }
-
-    private var maxVoxelY: Double {
-        let maxVal = voxels.map(\.count).max() ?? 10.0
-        return max(10.0, maxVal * 1.15)
+    private var effectiveZoom: CGFloat {
+        min(2.6, max(0.95, zoomScale * gestureZoom))
     }
 
     public init(dayCountMap: [Int: Int] = [:]) {
@@ -62,90 +21,166 @@ public struct MemoryTerrainChart3DView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("3D Memory Space")
-                        .font(.system(size: 17, weight: .bold, design: .rounded))
-                    Text(mode == .terrain ? "FSRS Stability × Difficulty × Retrievability" : "6-Week 3D Review Matrix")
-                        .font(.system(size: 12, weight: .regular))
+            // 顶部标题与展开按钮
+            HStack(alignment: .center, spacing: 8) {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "cube.transparent.fill")
+                            .foregroundStyle(Color.amgiAccent)
+                        Text("3D 记忆留存空间")
+                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                    }
+                    Text("稳定性 S (1~30天) × 难度 D (1~10) → 记忆留存率 R%")
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 4)
-                Picker("Mode", selection: $mode) {
-                    ForEach(DisplayMode.allCases) { m in
-                        Text(m.rawValue).tag(m)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .fixedSize()
-            }
-
-            ZStack {
-                if mode == .terrain {
-                    Chart3D {
-                        SurfacePlot(x: "Stability", y: "Retrievability", z: "Difficulty") { (s: Double, d: Double) in
-                            // FSRS 记忆保留率曲面函数 (x: 1...30d, z: 1...10, y: 40...100%)
-                            let stab = max(0.5, s)
-                            let diff = max(1.0, min(10.0, d))
-                            let decay = 19.0 / 81.0
-                            let factor = 1.0 + decay * (diff * 2.5) / stab
-                            return pow(factor, -0.5) * 100.0
-                        }
-                        .foregroundStyle(.heightBased)
-                        .metalness(0.35)
-                        .roughness(0.22)
-                    }
-                    .chartXScale(domain: 1.0...30.0)
-                    .chartYScale(domain: 40.0...100.0)
-                    .chartZScale(domain: 1.0...10.0)
-                    .chart3DPose($cameraPose)
-                    .chart3DCameraProjection(.perspective)
-                } else {
-                    Chart3D(voxels) { voxel in
-                        RuleMark(
-                            x: .value("Week", voxel.week),
-                            y: .value("Reviews", 0.0..<max(0.5, voxel.count)),
-                            z: .value("Weekday", voxel.weekday)
-                        )
-                        .foregroundStyle(by: .value("Reviews", voxel.count))
-                        .metalness(0.3)
-                        .roughness(0.25)
-                    }
-                    .chartXScale(domain: 0.5...6.5)
-                    .chartYScale(domain: 0.0...maxVoxelY)
-                    .chartZScale(domain: 0.5...7.5)
-                    .chart3DPose($cameraPose)
-                    .chart3DCameraProjection(.perspective)
-                }
-            }
-            .frame(height: 260)
-            .background(Color.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-            HStack {
-                Label("Drag to orbit 3D camera", systemImage: "hand.draw")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Spacer()
                 Button {
-                    withAnimation(.spring(response: 0.45, dampingFraction: 0.75)) {
-                        cameraPose = .default
+                    withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) {
+                        isExpanded.toggle()
                     }
                 } label: {
-                    Text("Reset Camera")
-                        .font(.caption2.bold())
-                        .foregroundStyle(Color.amgiAccent)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Color.amgiSurface, in: Capsule())
+                    Image(systemName: isExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color.amgiTextPrimary)
+                        .frame(width: 32, height: 32)
+                        .background(Color.amgiSurface, in: Circle())
                         .overlay(
-                            Capsule()
+                            Circle()
                                 .stroke(Color.amgiBorder.opacity(0.3), lineWidth: 1)
                         )
                 }
                 .buttonStyle(.plain)
             }
+
+            // 3D 记忆留存曲面视口（默认放大至 1.35x 并支持手势/按钮缩放至 2.6x）
+            ZStack(alignment: .topTrailing) {
+                Chart3D {
+                    SurfacePlot(x: "稳定性(S)", y: "留存率(%)", z: "难度(D)") { (s: Double, d: Double) in
+                        let stab = max(0.5, s)
+                        let diff = max(1.0, min(10.0, d))
+                        let decay = 19.0 / 81.0
+                        let factor = 1.0 + decay * (diff * 2.5) / stab
+                        return pow(factor, -0.5) * 100.0
+                    }
+                    .foregroundStyle(
+                        .heightBased(
+                            Gradient(colors: [
+                                Color.amgiRatingAgain,
+                                Color.amgiRatingHard,
+                                Color.amgiRatingGood,
+                                Color.amgiRatingEasy,
+                                Color.cyan
+                            ]),
+                            yRange: 40.0...100.0
+                        )
+                    )
+                    .metalness(0.38)
+                    .roughness(0.18)
+                }
+                .chartXScale(domain: 1.0...30.0)
+                .chartYScale(domain: 40.0...100.0)
+                .chartZScale(domain: 1.0...10.0)
+                .chart3DPose($cameraPose)
+                .chart3DCameraProjection(.perspective)
+                .scaleEffect(effectiveZoom)
+                .frame(maxWidth: .infinity)
+                .frame(height: isExpanded ? 480 : 350)
+                .contentShape(Rectangle())
+                .simultaneousGesture(
+                    MagnifyGesture()
+                        .onChanged { value in
+                            gestureZoom = value.magnification
+                        }
+                        .onEnded { value in
+                            zoomScale = min(2.6, max(0.95, zoomScale * value.magnification))
+                            gestureZoom = 1.0
+                        }
+                )
+
+                // 右上角无级缩放控制条 (- / 百分比 / +)
+                HStack(spacing: 6) {
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                            zoomScale = max(0.95, zoomScale - 0.2)
+                        }
+                    } label: {
+                        Image(systemName: "minus.magnifyingglass")
+                            .font(.system(size: 13, weight: .bold))
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.plain)
+
+                    Text("\(Int(round(effectiveZoom * 100)))%")
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .frame(minWidth: 38)
+
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                            zoomScale = min(2.6, zoomScale + 0.2)
+                        }
+                    } label: {
+                        Image(systemName: "plus.magnifyingglass")
+                            .font(.system(size: 13, weight: .bold))
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.black.opacity(0.55), in: Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                )
+                .padding(10)
+            }
+            .background(Color.black.opacity(0.24), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(Color.amgiBorder.opacity(0.25), lineWidth: 1)
+            )
+
+            // 底部交互说明与快速视角切换
+            HStack(spacing: 8) {
+                Label("单指旋转 · 双指缩放", systemImage: "hand.draw")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                Spacer()
+
+                HStack(spacing: 6) {
+                    cameraPresetButton(title: "立体", pose: .default, targetZoom: 1.35)
+                    cameraPresetButton(title: "正视", pose: .front, targetZoom: 1.45)
+                    cameraPresetButton(title: "俯视", pose: .top, targetZoom: 1.45)
+                }
+            }
         }
         .amgiCard(elevated: true)
+    }
+
+    private func cameraPresetButton(title: String, pose: Chart3DPose, targetZoom: CGFloat) -> some View {
+        Button {
+            withAnimation(.spring(response: 0.42, dampingFraction: 0.76)) {
+                cameraPose = pose
+                zoomScale = targetZoom
+            }
+        } label: {
+            Text(title)
+                .font(.caption2.bold())
+                .foregroundStyle(Color.amgiAccent)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Color.amgiSurface, in: Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(Color.amgiBorder.opacity(0.3), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
     }
 }

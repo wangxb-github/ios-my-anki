@@ -76,18 +76,6 @@ jobs:
           chmod +x ./scripts/generate-protos.sh
           ./scripts/generate-protos.sh
 
-      - name: Verify Metal toolchain for shaders
-        run: |
-          SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
-          if ! xcrun --sdk iphoneos metal -c AnkiApp/Sources/Theme/Shaders/AnkiEffects.metal -F "$SDK_PATH/System/Library/Frameworks" -o /tmp/AnkiEffects.air >/dev/null 2>&1; then
-            echo "Metal toolchain not preinstalled; attempting download..."
-            xcodebuild -downloadComponent MetalToolchain || true
-          fi
-          if ! xcrun --sdk iphoneos metal -c AnkiApp/Sources/Theme/Shaders/AnkiEffects.metal -F "$SDK_PATH/System/Library/Frameworks" -o /tmp/AnkiEffects.air >/dev/null 2>&1; then
-            echo "Metal compiler unavailable on runner; removing .metal file to use SwiftUI shader fallback"
-            rm -rf AnkiApp/Sources/Theme/Shaders
-          fi
-
       - name: Generate Xcode project
         run: |
           cd AnkiApp && xcodegen generate

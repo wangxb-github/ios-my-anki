@@ -27,7 +27,7 @@ private enum StatsChartSection: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .memoryTerrain3D: "3D Memory Space"
+        case .memoryTerrain3D: "3D 记忆留存空间"
         case .futureDue: L("stats_future_due_title")
         case .heatmap: L("stats_heatmap_title")
         case .reviews: L("stats_reviews_title")

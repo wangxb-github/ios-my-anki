@@ -2282,40 +2282,27 @@ struct LiquidCrystalCardWebView: View {
     }
 
     var body: some View {
-        GeometryReader { geo in
-            CardWebView(
-                html: html,
-                cardCSS: cardCSS,
-                autoplayEnabled: autoplayEnabled,
-                isAnswerSide: isAnswerSide,
-                cardOrdinal: cardOrdinal,
-                replayRequestID: replayRequestID,
-                stopAudioRequestID: stopAudioRequestID,
-                typedAnswerRequestID: typedAnswerRequestID,
-                replayMode: replayMode,
-                showInlineAudioReplayButtons: showInlineAudioReplayButtons,
-                openLinksExternally: openLinksExternally,
-                lookupPopupEnabled: lookupPopupEnabled,
-                prefetchHTML: prefetchHTML,
-                contentAlignment: contentAlignment,
-                bottomContentInset: bottomContentInset,
-                onTypedAnswerSubmitted: onTypedAnswerSubmitted,
-                onAudioStateChange: onAudioStateChange,
-                onCardBackgroundColorChange: onCardBackgroundColorChange,
-                onLookupRequested: onLookupRequested,
-                onScrollOffsetChange: onScrollOffsetChange
-            )
-            .clipShape(.rect(corners: .concentric(minimum: .fixed(20)), isUniform: true))
-            .overlay {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(Color.amgiGlassRimLight.opacity(0.45), lineWidth: 1)
-                    .ankiIridescentHoloFoil(
-                        size: geo.size,
-                        tilt: MotionManager.shared.currentTilt,
-                        intensity: 0.22
-                    )
-                    .allowsHitTesting(false)
-            }
-        }
+        CardWebView(
+            html: html,
+            cardCSS: cardCSS,
+            autoplayEnabled: autoplayEnabled,
+            isAnswerSide: isAnswerSide,
+            cardOrdinal: cardOrdinal,
+            replayRequestID: replayRequestID,
+            stopAudioRequestID: stopAudioRequestID,
+            typedAnswerRequestID: typedAnswerRequestID,
+            replayMode: replayMode,
+            showInlineAudioReplayButtons: showInlineAudioReplayButtons,
+            openLinksExternally: openLinksExternally,
+            lookupPopupEnabled: lookupPopupEnabled,
+            prefetchHTML: prefetchHTML,
+            contentAlignment: contentAlignment,
+            bottomContentInset: bottomContentInset,
+            onTypedAnswerSubmitted: onTypedAnswerSubmitted,
+            onAudioStateChange: onAudioStateChange,
+            onCardBackgroundColorChange: onCardBackgroundColorChange,
+            onLookupRequested: onLookupRequested,
+            onScrollOffsetChange: onScrollOffsetChange
+        )
     }
 }
